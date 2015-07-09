@@ -1,5 +1,9 @@
+import re
+from functools import partial
 from kivy.app import App
 from kivy.lang import Builder
+from kivy.uix.label import Label
+from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
@@ -20,7 +24,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150706.706 $"
+__version__ = "$Revision: 20150709.809 $"
 
 
 def show_url_result(req, results):
@@ -36,13 +40,88 @@ class ConnectingServerScreen(Screen):
     connection_status = StringProperty('None')
     json_sensors = StringProperty('........')
 
+    def change_screen(self, *args):
+        screen_name = args[0]
+        sm = self._app.root
+        sm.current = screen_name
+
+    def create_button_view(self, json_sensors):
+        import json
+        import time
+
+        # Check that JSON been recieved
+        # if self.json_sensors.find('{') >= 0:
+        if re.match(r'^\{.*\}$', self.json_sensors):
+            try:
+                j = json.loads(self.json_sensors)
+            except Exception as e:
+                self.json_sensors = 'Error in JSON'
+            else:
+                sm = self._app.root
+                all_devices_boxlayout = BoxLayout(orientation='vertical')
+                l = Label(text='Devices')
+                all_devices_boxlayout.add_widget(l)
+                all_devices_screen = Screen(name='all_devices_buttons')
+                all_devices_screen.add_widget(all_devices_boxlayout)
+                sm.add_widget(all_devices_screen)
+
+                # Bulding new screens for list of devices and sensors based on json
+
+                # For each device create its own Screen
+                for device in j.keys():
+                    print "Creating screen for device %s" % (device,)
+                    screen_device = Screen(name=device)
+                    box_device = BoxLayout(orientation='vertical')
+                    l = Label(text=device)
+                    box_device.add_widget(l)
+
+                    # Add button for device on all_devices_boxlayout
+                    b = Button(text=device)
+                    # This will call the function with 'device' as argument to switch Screen
+                    b.bind(on_press=partial(self.change_screen, device))
+                    all_devices_boxlayout.add_widget(b)
+
+                    # Create Device Screen with sensors
+                    box_device = BoxLayout(orientation='vertical')
+                    box_device.add_widget(Label(text=device))
+
+                    # Create Sensor Screen and button on device screen
+                    for sensor in j[device]:
+                        sensor = device + '_' + sensor.keys()[0]
+                        print sensor
+                        # Create sensor screen
+                        screen_sensor = Screen(name=sensor)
+                        box_sensor = BoxLayout(orientation='vertical')
+                        l = Label(text=sensor)
+                        box_sensor.add_widget(l)
+                        sm.add_widget(screen_sensor)
+
+                        # Create button on device screen
+                        button_sensor = Button(text=sensor)
+                        button_sensor.bind(on_press=partial(self.change_screen, sensor))
+                        box_device.add_widget(button_sensor)
+
+                    # Add Device Screen with all sensor buttons to ScreenManager
+                    screen_device.add_widget(box_device)
+                    sm.add_widget(screen_device)
+
+                # Unschedule timer
+                Clock.unschedule(self.create_button_view)
+                # Return to buttons of all devices
+                sm.current = 'all_devices_buttons'
+
+
     def call_connect_sensor_status(self, *args):
+        ''' Function that connects and retrieves json '''
         self.port = self._app.config.get('network', 'port')
         self.server = self._app.config.get('network', 'ip')
         # Initiate connection
         print "Connecting to %s:%s" % (self.server, self.port)
         print  str(self._app.connect_to_server())
-        # self._app.send_message()
+
+        Clock.schedule_interval(self.create_button_view, 1)
+
+        # self._app.root.current = 'about_screen'
 
 class ViewSensorScreen(Screen):
     pass
@@ -70,10 +149,9 @@ class MyScrollView(ScrollView):
 
 class MyScrollScreen(Screen):
     def __init__(self, **kwargs):
-        # kwargs['cols'] = 1
+        kwargs['cols'] = 1
         super(MyScrollScreen, self).__init__(**kwargs)
-        scroll_view = MyScrollView()
-        self.add_widget(scroll_view)
+        self.add_widget(MyScrollView())
 
 # MyScrollWidget = MyScrollScreen()
 
@@ -134,8 +212,12 @@ Builder.load_string('''
         Label:
             font_size: 30
             text: root.connection_status
+        Image:
+            source: 'spinning.gif'
+            allow_stretch: False
+            keep_ratio: True
         Label:
-            font_size: 30
+            font_size: 20
             text: root.json_sensors[:40]
 
 <ViewSensorScreen>
@@ -180,14 +262,6 @@ Builder.load_string('''
             y_grid_label:True
             x_grid:True
             y_grid:True
-
-<MyScrollScreen>:
-    name: 'scroll_screen'
-    Label:
-        text: str('Really Long Text' * 150)
-        font_size: 50
-        text_size: self.width, None
-        size_hint_y: None
 ''')
 
 class ProtocolClass(protocol.Protocol):
@@ -226,7 +300,6 @@ MyScreenManager:
 
 class MyApp(App):
     data = StringProperty('initial text')
-    # connection_status = StringProperty('Waiting for connecting')
     connection = None
 
     def __init__(self, **kwargs):
@@ -303,7 +376,14 @@ class MyApp(App):
         # sm.add_widget(LogScreen(name='log_screen'))
         sm.add_widget(AboutScreen(name='about_screen'))
         # sm.add_widget(GraphScreen(name='graph_screen'))
-        sm.add_widget(MyScrollScreen(name='scroll_screen'))
+
+        # Test creating Scroll View
+        l = Label(text=str('Really Long Text\n' * 30), font_size=30, text_size=(400, None), height=100, size_hint_y=None)
+        s = MyScrollScreen(name='scroll_screen')
+        s.add_widget(l)
+        sm.add_widget(s)
+        # sm.add_widget(MyScrollScreen(name='scroll_screen'))
+
         sm.add_widget(ConnectingServerScreen(name='connecting_server_screen'))
 
         # Add configuration to ConnectingServerScreen
@@ -315,22 +395,18 @@ class MyApp(App):
                 self.connection_screen = screen
                 screen.connection_status = "Connecting to %s:%s" % (server, port)
 
-        # return sm
+        # Return ScreenManager
         return sm
-
-
-        # Return root object
-        return Builder.load_string(kv)
 
     def timer(self, dt):
         # self.connect_to_server()
         # self.send_message()
         pass
 
-
     def connect_to_server(self):
-        # print reactor.connectTCP('46.228.47.114', 80, ConnectionClass(self))
-        return reactor.connectTCP('router.engvalls.eu', 3000, ConnectionClass(self))
+        server = str(self.config.get('network', 'ip'))
+        port = int(self.config.get('network', 'port'))
+        return reactor.connectTCP(server, port, ConnectionClass(self))
 
     def on_connection(self, connection):
         # self.print_message("connected succesfully!")
@@ -356,7 +432,7 @@ class MyApp(App):
                 self.connection_screen.json_sensors = str(msg)
             print "Printing Result of JSON Sensor"
             print self.connection_screen.json_sensors
-            self.connection_screen.connection_status = 'Retrieved JSON!'
+            self.connection_screen.connection_status = 'Retrieving JSON!'
             # Save to local file as debug
             with open('debug.txt', 'w') as f:
                 f.write(msg)
