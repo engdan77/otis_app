@@ -24,7 +24,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150709.809 $"
+__version__ = "$Revision: 20150709.826 $"
 
 
 def show_url_result(req, results):
@@ -59,7 +59,7 @@ class ConnectingServerScreen(Screen):
             else:
                 sm = self._app.root
                 all_devices_boxlayout = BoxLayout(orientation='vertical')
-                l = Label(text='Devices')
+                l = Label(text='Devices', font_size=30)
                 all_devices_boxlayout.add_widget(l)
                 all_devices_screen = Screen(name='all_devices_buttons')
                 all_devices_screen.add_widget(all_devices_boxlayout)
@@ -72,7 +72,7 @@ class ConnectingServerScreen(Screen):
                     print "Creating screen for device %s" % (device,)
                     screen_device = Screen(name=device)
                     box_device = BoxLayout(orientation='vertical')
-                    l = Label(text=device)
+                    l = Label(text=device, font_size=30)
                     box_device.add_widget(l)
 
                     # Add button for device on all_devices_boxlayout
@@ -83,27 +83,51 @@ class ConnectingServerScreen(Screen):
 
                     # Create Device Screen with sensors
                     box_device = BoxLayout(orientation='vertical')
-                    box_device.add_widget(Label(text=device))
+                    box_device.add_widget(Label(text=device, font_size=30))
 
                     # Create Sensor Screen and button on device screen
                     for sensor in j[device]:
-                        sensor = device + '_' + sensor.keys()[0]
+                        sensor_name = sensor.keys()[0]
+                        sensor_data = sensor[sensor_name]
+                        sensor_values = sensor_data['last_records']
+                        last_date, last_value = sensor_values[0]
+
+                        sensor = device + '_' + sensor_name
                         print sensor
+                        print "Last data %s %s" % (last_date, last_value)
                         # Create sensor screen
-                        screen_sensor = Screen(name=sensor)
+                        screen_sensor = Screen(name=device + "_" + sensor_name)
                         box_sensor = BoxLayout(orientation='vertical')
-                        l = Label(text=sensor)
-                        box_sensor.add_widget(l)
+                        box_sensor.add_widget(Label(text=sensor_name, font_size=30))
+                        # Add sensor value
+                        box_sensor.add_widget(Label(text=last_value, font_size=40))
+                        # Add sensor date
+                        box_sensor.add_widget(Label(text=last_date, font_size=20))
+
+                        # Add Back button
+                        back_button = Button(text='Back')
+                        back_button.bind(on_press=partial(self.change_screen, device))
+                        box_sensor.add_widget(back_button)
+
+                        screen_sensor.add_widget(box_sensor)
                         sm.add_widget(screen_sensor)
 
                         # Create button on device screen
-                        button_sensor = Button(text=sensor)
+                        button_sensor = Button(text=sensor_name)
                         button_sensor.bind(on_press=partial(self.change_screen, sensor))
                         box_device.add_widget(button_sensor)
 
                     # Add Device Screen with all sensor buttons to ScreenManager
+                    back_button = Button(text='Back')
+                    back_button.bind(on_press=partial(self.change_screen, 'all_devices_buttons'))
+                    box_device.add_widget(back_button)
                     screen_device.add_widget(box_device)
                     sm.add_widget(screen_device)
+
+                # Adding Back button to Devices screen
+                back_button = Button(text='Back')
+                back_button.bind(on_press=partial(self.change_screen, 'initial_screen'))
+                all_devices_boxlayout.add_widget(back_button)
 
                 # Unschedule timer
                 Clock.unschedule(self.create_button_view)
