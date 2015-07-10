@@ -2,6 +2,8 @@ import re
 from functools import partial
 from kivy.app import App
 from kivy.lang import Builder
+from kivy.factory import Factory
+from kivy.animation import Animation
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
@@ -24,7 +26,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150709.826 $"
+__version__ = "$Revision: 20150710.856 $"
 
 
 def show_url_result(req, results):
@@ -49,17 +51,18 @@ class ConnectingServerScreen(Screen):
         import json
         import time
 
+        # Make reference to app root widget
+        sm = self._app.root
+
         # Check that JSON been recieved
-        # if self.json_sensors.find('{') >= 0:
         if re.match(r'^\{.*\}$', self.json_sensors):
             try:
                 j = json.loads(self.json_sensors)
             except Exception as e:
                 self.json_sensors = 'Error in JSON'
             else:
-                sm = self._app.root
                 all_devices_boxlayout = BoxLayout(orientation='vertical')
-                l = Label(text='Devices', font_size=30)
+                l = Label(text='[color=ff3333]Devices[/color]', font_size=40, markup=True)
                 all_devices_boxlayout.add_widget(l)
                 all_devices_screen = Screen(name='all_devices_buttons')
                 all_devices_screen.add_widget(all_devices_boxlayout)
@@ -71,9 +74,9 @@ class ConnectingServerScreen(Screen):
                 for device in j.keys():
                     print "Creating screen for device %s" % (device,)
                     screen_device = Screen(name=device)
-                    box_device = BoxLayout(orientation='vertical')
-                    l = Label(text=device, font_size=30)
-                    box_device.add_widget(l)
+                    # box_device = BoxLayout(orientation='vertical')
+                    # l = Label(text='[color=ff3333]' + device + '[/color]', font_size=30, markup=True)
+                    # box_device.add_widget(l)
 
                     # Add button for device on all_devices_boxlayout
                     b = Button(text=device)
@@ -83,7 +86,7 @@ class ConnectingServerScreen(Screen):
 
                     # Create Device Screen with sensors
                     box_device = BoxLayout(orientation='vertical')
-                    box_device.add_widget(Label(text=device, font_size=30))
+                    box_device.add_widget(Label(text='[color=ff3333]' + device + '[/color]', font_size=40, markup=True))
 
                     # Create Sensor Screen and button on device screen
                     for sensor in j[device]:
@@ -92,17 +95,28 @@ class ConnectingServerScreen(Screen):
                         sensor_values = sensor_data['last_records']
                         last_date, last_value = sensor_values[0]
 
+                        # Determine suffix
+                        suffix = ''
+                        if re.match(r'.*temp.*', sensor_name, re.IGNORECASE):
+                            suffix = u"\u00b0C"
+                        if re.match(r'.*humid.*', sensor_name, re.IGNORECASE):
+                            suffix = " %"
+                        if re.match(r'.*smoke.*', sensor_name, re.IGNORECASE):
+                            suffix = " %"
+                        if re.match(r'.*stove.*', sensor_name, re.IGNORECASE):
+                            suffix = " %"
+
                         sensor = device + '_' + sensor_name
                         print sensor
                         print "Last data %s %s" % (last_date, last_value)
                         # Create sensor screen
                         screen_sensor = Screen(name=device + "_" + sensor_name)
                         box_sensor = BoxLayout(orientation='vertical')
-                        box_sensor.add_widget(Label(text=sensor_name, font_size=30))
+                        box_sensor.add_widget(Label(text='[color=B6BAB9]' + sensor_name + '[/color]', font_size=40, markup=True))
                         # Add sensor value
-                        box_sensor.add_widget(Label(text=last_value, font_size=40))
+                        box_sensor.add_widget(Label(text=last_value + suffix, font_size=60))
                         # Add sensor date
-                        box_sensor.add_widget(Label(text=last_date, font_size=20))
+                        box_sensor.add_widget(Label(text='Updated ' + last_date[:-3], font_size=30))
 
                         # Add Back button
                         back_button = Button(text='Back')
@@ -134,6 +148,11 @@ class ConnectingServerScreen(Screen):
                 # Return to buttons of all devices
                 sm.current = 'all_devices_buttons'
 
+        # Check if failed pause for error before return
+        if re.match(r'.*fail.*', self.connection_status):
+            Clock.unschedule(self.create_button_view)
+            time.sleep(2)
+            sm.current = 'initial_screen'
 
     def call_connect_sensor_status(self, *args):
         ''' Function that connects and retrieves json '''
@@ -142,10 +161,7 @@ class ConnectingServerScreen(Screen):
         # Initiate connection
         print "Connecting to %s:%s" % (self.server, self.port)
         print  str(self._app.connect_to_server())
-
         Clock.schedule_interval(self.create_button_view, 1)
-
-        # self._app.root.current = 'about_screen'
 
 class ViewSensorScreen(Screen):
     pass
@@ -213,6 +229,9 @@ Builder.load_string('''
             Button:
                 text: 'Scroll View'
                 on_press: app.root.current = 'scroll_screen'
+            Button:
+                text: 'Exit'
+                on_press: app.stop()
         BoxLayout:
             orientation: 'vertical'
             Image:
@@ -237,9 +256,10 @@ Builder.load_string('''
             font_size: 30
             text: root.connection_status
         Image:
-            source: 'spinning.gif'
+            source: 'RingGreen.zip'
             allow_stretch: False
             keep_ratio: True
+            anim_delay: 0.02
         Label:
             font_size: 20
             text: root.json_sensors[:40]
@@ -339,6 +359,9 @@ class MyApp(App):
                             'refresh_time': '60'
                             })
 
+    def on_config_change(self, config, section, key, value):
+       pass
+
     def build_settings(self, settings):
         import json
         self.setting_json = '''[
@@ -386,7 +409,8 @@ class MyApp(App):
 
         # Configuration settings
         config = self.config
-        self.settings_cls = SettingsWithSidebar
+        # self.settings_cls = SettingsWithSidebar
+        self.settings_cls = SettingsWithTabbedPanel
 
         # Clock handler
         # Clock.schedule_interval(self.timer, 20)
@@ -427,6 +451,9 @@ class MyApp(App):
         # self.send_message()
         pass
 
+    def on_stop(self):
+        print "Good Bye!!"
+
     def connect_to_server(self):
         server = str(self.config.get('network', 'ip'))
         port = int(self.config.get('network', 'port'))
@@ -446,6 +473,7 @@ class MyApp(App):
             self.connection.write(msg)
 
     def print_message(self, msg):
+        import time
         # Successfully receieved JSON
         if str(msg).find('{') > 0 or str(msg).find('}') > 0:
             if not str(msg)[0] == '{':
