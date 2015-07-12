@@ -26,13 +26,99 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150710.856 $"
+__version__ = "$Revision: 20150712.973 $"
 
 
 def show_url_result(req, results):
     ''' Show result of url request '''
     print "req: %s" % (str(req),)
     print "results: %s" % (str(results),)
+
+def updates_to_plots(last_records):
+    ''' Convert last records to graph plots '''
+    from datetime import datetime
+    import re
+    last_records.reverse()
+    last_records = sorted(last_records)
+    print '='*30
+    print last_records
+    print '='*30
+    result = []
+
+    d_fmt = '%Y-%m-%d %H:%M:%S'
+    now = datetime.now()
+    prev_value = None
+    for value_tuple in last_records:
+        d, v = value_tuple
+        d = datetime.strptime(d, d_fmt)
+        # Divide timediff in seconds by one day to get how many days diff
+        timediff = float(int(now.strftime('%s')) - int(d.strftime('%s'))) / 86400
+        timediff = 0 - float(format(timediff, '.4f'))
+        # timediff = float(format(0 - (timediff.seconds / float(86400)), '.4f'))
+
+        # Change value if required
+        next_zero = None
+        prev_zero = None
+        prev_one = None
+        if re.match(r'.*Motion.*', v, re.IGNORECASE):
+            v = 1
+            prev_zero = True
+            next_zero = True
+        elif re.match(r'.*Door Open.*', v, re.IGNORECASE):
+            if prev_value == 1:
+                prev_one = True
+            if prev_value == 0:
+                print "door from 0 to 1"
+                prev_zero = True
+            v = 1
+        elif re.match(r'.*Door Close.*', v, re.IGNORECASE):
+            if prev_value == 1:
+                prev_one = True
+            v = 0
+        else:
+            v = float(v)
+
+
+        # Add one where required
+        if prev_one is True:
+            result.append((timediff-0.0001, 1))
+            print "prepending 0.0001"
+            print result
+        if prev_zero is True:
+            result.append((timediff-0.0001, 0))
+            print "prepending 0.0001"
+            print result
+
+        # Adding value
+        result.append((timediff, v))
+        print "Adding value"
+        print result
+
+        # Correct issue with Motion/Door
+        if next_zero is True:
+            result.append((timediff+0.0001, 0))
+            print "adding zero after"
+            print result
+
+        # Store previous value
+        prev_value = v
+
+    # Append last value to result
+    if re.match(r'.*Motion.*', value_tuple[1], re.IGNORECASE):
+        result.append((0-0.0001, 0))
+        result.append((0, v))
+    else:
+        result.append((0, v))
+
+    # Determina min/max values
+    # result = sorted(result)
+    all_x_values, all_y_values = zip(*result)
+    min_x_value = float(min(*all_x_values))
+    min_y_value = float(min(*all_y_values))
+    max_y_value = float(max(*all_y_values))
+
+    # Return result as dict
+    return {'plots': result, 'min_y': min_y_value, 'max_y': max_y_value, 'min_x': min_x_value}
 
 class InitialScreen(Screen):
     version = StringProperty(__version__.replace('$', ''))
@@ -61,9 +147,10 @@ class ConnectingServerScreen(Screen):
             except Exception as e:
                 self.json_sensors = 'Error in JSON'
             else:
-                all_devices_boxlayout = BoxLayout(orientation='vertical')
-                l = Label(text='[color=ff3333]Devices[/color]', font_size=40, markup=True)
-                all_devices_boxlayout.add_widget(l)
+                all_devices_boxlayout = BoxLayout(orientation='vertical', spacing=10)
+                all_devices_boxlayout.add_widget(Label(text=''))
+                all_devices_boxlayout.add_widget(Label(size_hint_y=0.2, text='[color=ff3333]Devices[/color]', font_size=40, markup=True))
+                all_devices_boxlayout.add_widget(Label(text=''))
                 all_devices_screen = Screen(name='all_devices_buttons')
                 all_devices_screen.add_widget(all_devices_boxlayout)
                 sm.add_widget(all_devices_screen)
@@ -74,9 +161,6 @@ class ConnectingServerScreen(Screen):
                 for device in j.keys():
                     print "Creating screen for device %s" % (device,)
                     screen_device = Screen(name=device)
-                    # box_device = BoxLayout(orientation='vertical')
-                    # l = Label(text='[color=ff3333]' + device + '[/color]', font_size=30, markup=True)
-                    # box_device.add_widget(l)
 
                     # Add button for device on all_devices_boxlayout
                     b = Button(text=device)
@@ -85,18 +169,27 @@ class ConnectingServerScreen(Screen):
                     all_devices_boxlayout.add_widget(b)
 
                     # Create Device Screen with sensors
-                    box_device = BoxLayout(orientation='vertical')
-                    box_device.add_widget(Label(text='[color=ff3333]' + device + '[/color]', font_size=40, markup=True))
+                    box_device = BoxLayout(orientation='vertical', spacing=10)
+                    box_device.add_widget(Label(text=''))
+                    box_device.add_widget(Label(size_hint_y=0.2, text='[color=ff3333]' + device + '[/color]', font_size=40, markup=True))
+                    box_device.add_widget(Label(text=''))
 
                     # Create Sensor Screen and button on device screen
                     for sensor in j[device]:
                         sensor_name = sensor.keys()[0]
                         sensor_data = sensor[sensor_name]
                         sensor_values = sensor_data['last_records']
-                        last_date, last_value = sensor_values[0]
+
+                        sensor_dict = updates_to_plots(sensor_values)
+                        sensor_plots = sensor_dict['plots']
+                        ymin = sensor_dict['min_y']
+                        ymax = sensor_dict['max_y']
+                        xmin = sensor_dict['min_x']
+
+                        last_date, last_value = sensor_values[-1]
 
                         # Determine suffix
-                        suffix = ''
+                        suffix = ' '
                         if re.match(r'.*temp.*', sensor_name, re.IGNORECASE):
                             suffix = u"\u00b0C"
                         if re.match(r'.*humid.*', sensor_name, re.IGNORECASE):
@@ -112,14 +205,25 @@ class ConnectingServerScreen(Screen):
                         # Create sensor screen
                         screen_sensor = Screen(name=device + "_" + sensor_name)
                         box_sensor = BoxLayout(orientation='vertical')
-                        box_sensor.add_widget(Label(text='[color=B6BAB9]' + sensor_name + '[/color]', font_size=40, markup=True))
+                        box_sensor.add_widget(Label(size_hint_y=0.1, text='[color=B6BAB9]' + sensor_name + '[/color]', font_size=30, markup=True))
                         # Add sensor value
                         box_sensor.add_widget(Label(text=last_value + suffix, font_size=60))
                         # Add sensor date
-                        box_sensor.add_widget(Label(text='Updated ' + last_date[:-3], font_size=30))
+                        box_sensor.add_widget(Label(size_hint_y=0.1, text='Sensor last updated ' + last_date[:-3], font_size=20))
+                        # Add sensor graph
+                        print "Create plot for %s" % (sensor_name,)
+                        print sensor_plots
+                        print xmin
+                        print ymin
+                        print ymax
+                        plot = MeshLinePlot(mode='line_strip', color=[1, 0, 0, 1])
+                        plot.points = sensor_plots
+                        sensor_graph = Graph(x_grid_label=True, y_grid_label=True, xmin=xmin, xmax=0, ymin=ymin, ymax=ymax, xlabel='days ago', ylabel=suffix, x_grid=False, y_grid=False, x_ticks_major=1, y_ticks_major=1)
+                        sensor_graph.add_plot(plot)
+                        box_sensor.add_widget(sensor_graph)
 
                         # Add Back button
-                        back_button = Button(text='Back')
+                        back_button = Button(size_hint_y=0.2, font_size=20, text='Back')
                         back_button.bind(on_press=partial(self.change_screen, device))
                         box_sensor.add_widget(back_button)
 
@@ -132,14 +236,14 @@ class ConnectingServerScreen(Screen):
                         box_device.add_widget(button_sensor)
 
                     # Add Device Screen with all sensor buttons to ScreenManager
-                    back_button = Button(text='Back')
+                    back_button = Button(font_size=20, text='Back')
                     back_button.bind(on_press=partial(self.change_screen, 'all_devices_buttons'))
                     box_device.add_widget(back_button)
                     screen_device.add_widget(box_device)
                     sm.add_widget(screen_device)
 
                 # Adding Back button to Devices screen
-                back_button = Button(text='Back')
+                back_button = Button(font_size=20, text='Back')
                 back_button.bind(on_press=partial(self.change_screen, 'initial_screen'))
                 all_devices_boxlayout.add_widget(back_button)
 
@@ -163,9 +267,6 @@ class ConnectingServerScreen(Screen):
         print  str(self._app.connect_to_server())
         Clock.schedule_interval(self.create_button_view, 1)
 
-class ViewSensorScreen(Screen):
-    pass
-
 class AboutScreen(Screen):
     pass
 
@@ -174,14 +275,6 @@ class LogScreen(Screen):
 
 class SettingScreen(Screen):
     pass
-
-class GraphScreen(Screen):
-    def draw_graph(self):
-        print "Running graph"
-        # Draw graph
-        plot = MeshLinePlot(mode='line_strip', color=[1, 0, 0, 1])
-        plot.points = [(0, 0), (5, 5), (10, 10), (50, 50)]
-        self.my_graph.add_plot(plot)
 
 class MyScrollView(ScrollView):
     def __init__(self, **kwargs):
@@ -193,7 +286,9 @@ class MyScrollScreen(Screen):
         super(MyScrollScreen, self).__init__(**kwargs)
         self.add_widget(MyScrollView())
 
-# MyScrollWidget = MyScrollScreen()
+class MyFixedButton(Button):
+    pass
+
 
 config_ini = '''
 [network]
@@ -204,6 +299,9 @@ Builder.load_string('''
 #:import FadeTransition kivy.uix.screenmanager.FadeTransition
 #:import Clock kivy.clock.Clock
 #:import partial functools
+
+<MyFixedButton>
+    height: self.texture_size[1]
 
 <InitialScreen>
     name: 'initial_screen'
@@ -221,9 +319,6 @@ Builder.load_string('''
                 text: 'Log screen'
                 on_press: app.root.current = 'log_screen'
             Button:
-                text: 'Graph screen'
-                on_press: app.root.current = 'graph_screen'
-            Button:
                 text: 'About'
                 on_press: app.root.current = 'about_screen'
             Button:
@@ -231,6 +326,7 @@ Builder.load_string('''
                 on_press: app.root.current = 'scroll_screen'
             Button:
                 text: 'Exit'
+                font_size: 20
                 on_press: app.stop()
         BoxLayout:
             orientation: 'vertical'
@@ -264,13 +360,6 @@ Builder.load_string('''
             font_size: 20
             text: root.json_sensors[:40]
 
-<ViewSensorScreen>
-    name: 'view_sensor_screen'
-    BoxLayout:
-        orientation: 'horizontal'
-        Label:
-            text: 'test'
-
 <AboutScreen>
     name: 'about_screen'
     BoxLayout:
@@ -290,22 +379,6 @@ Builder.load_string('''
     BoxLayout:
         TextInput:
             text: 'app.data'
-
-<GraphScreen>
-    name: 'graph_screen'
-    my_graph: my_graph
-    BoxLayout:
-        Button:
-            text: 'Draw Graph'
-            on_press: root.draw_graph()
-        Graph:
-            id: my_graph
-            pos: 0,0
-            size: 50, 50
-            x_grid_label:True
-            y_grid_label:True
-            x_grid:True
-            y_grid:True
 ''')
 
 class ProtocolClass(protocol.Protocol):
@@ -461,7 +534,7 @@ class MyApp(App):
 
     def on_connection(self, connection):
         # self.print_message("connected succesfully!")
-        self.connection_screen.connection_status = 'Connected succesfully, retrieve JSON!'
+        self.connection_screen.connection_status = 'Connected succesfully, retrieving JSON data!'
         self.connection = connection
         # Send actual command to server
         self.send_message()
