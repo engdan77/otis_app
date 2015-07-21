@@ -7,6 +7,10 @@ from kivy.animation import Animation
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.listview import ListView
+from kivy.uix.relativelayout import RelativeLayout
+from kivy.uix.scatter import Scatter
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
 from kivy.properties import StringProperty, ObjectProperty
@@ -26,7 +30,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150712.973 $"
+__version__ = "$Revision: 20150721.1070 $"
 
 
 def show_url_result(req, results):
@@ -202,10 +206,31 @@ class ConnectingServerScreen(Screen):
                         sensor = device + '_' + sensor_name
                         print sensor
                         print "Last data %s %s" % (last_date, last_value)
+
+                        # Create history view
+                        screen_sensor_history = Screen(name=device + "_" + sensor_name + "_history")
+                        box_sensor_history = BoxLayout(orientation='vertical', spacing=10)
+                        box_sensor_history.add_widget(Label(size_hint_y=0.1, text='[color=B6BAB9]' + sensor_name + ' (' + device + ')[/color]', font_size=30, markup=True))
+
+                        # Create history text
+                        text_history = []
+                        for d, v in sensor_values:
+                            text_history.append("%s:   %s\n" % (d, v))
+                        # box_sensor_history.add_widget(Label(halign='left', valign='top', size_hint_y=0.1, text='[color=B6BAB9]' + text_history + ')[/color]', font_size=20, markup=True))
+                        # list_view = ListView(item_strings=[str(index) for index in range(100)])
+                        list_history = ListView(item_strings=text_history)
+                        box_sensor_history.add_widget(list_history)
+
+                        back_button = Button(size_hint_y=0.1, font_size=20, text='Back')
+                        back_button.bind(on_press=partial(self.change_screen, device + "_" + sensor_name))
+                        box_sensor_history.add_widget(back_button)
+                        screen_sensor_history.add_widget(box_sensor_history)
+                        sm.add_widget(screen_sensor_history)
+
                         # Create sensor screen
                         screen_sensor = Screen(name=device + "_" + sensor_name)
                         box_sensor = BoxLayout(orientation='vertical')
-                        box_sensor.add_widget(Label(size_hint_y=0.1, text='[color=B6BAB9]' + sensor_name + '[/color]', font_size=30, markup=True))
+                        box_sensor.add_widget(Label(size_hint_y=0.1, text='[color=B6BAB9]' + sensor_name + ' (' + device + ')[/color]', font_size=30, markup=True))
                         # Add sensor value
                         box_sensor.add_widget(Label(text=last_value + suffix, font_size=60))
                         # Add sensor date
@@ -213,20 +238,31 @@ class ConnectingServerScreen(Screen):
                         # Add sensor graph
                         print "Create plot for %s" % (sensor_name,)
                         print sensor_plots
-                        print xmin
-                        print ymin
-                        print ymax
                         plot = MeshLinePlot(mode='line_strip', color=[1, 0, 0, 1])
                         plot.points = sensor_plots
-                        sensor_graph = Graph(x_grid_label=True, y_grid_label=True, xmin=xmin, xmax=0, ymin=ymin, ymax=ymax, xlabel='days ago', ylabel=suffix, x_grid=False, y_grid=False, x_ticks_major=1, y_ticks_major=1)
+                        sensor_graph = Graph(precision='%0.0f', x_grid_label=True, y_grid_label=True, xmin=xmin, xmax=0, ymin=ymin, ymax=ymax, xlabel='days ago', ylabel=suffix, x_grid=True, y_grid=False, x_ticks_major=1, y_ticks_major=1)
                         sensor_graph.add_plot(plot)
                         box_sensor.add_widget(sensor_graph)
 
-                        # Add Back button
+                        # Add buttonbar
+                        box_buttons = BoxLayout(orientation='horizontal')
+
+                        # Create button for history
+                        history_button = Button(size_hint_y=0.2, font_size=20, text='History')
+                        history_button.bind(on_press=partial(self.change_screen, device + "_" + sensor_name + "_history"))
+
+                        # Create Back button
                         back_button = Button(size_hint_y=0.2, font_size=20, text='Back')
                         back_button.bind(on_press=partial(self.change_screen, device))
-                        box_sensor.add_widget(back_button)
 
+                        # Add buttons to row
+                        box_buttons.add_widget(back_button)
+                        box_buttons.add_widget(history_button)
+
+                        # Add row to screen
+                        box_sensor.add_widget(box_buttons)
+
+                        # Add all of it to screen
                         screen_sensor.add_widget(box_sensor)
                         sm.add_widget(screen_sensor)
 
@@ -253,7 +289,7 @@ class ConnectingServerScreen(Screen):
                 sm.current = 'all_devices_buttons'
 
         # Check if failed pause for error before return
-        if re.match(r'.*fail.*', self.connection_status):
+        if re.match(r'.*fail.*', self.connection_status) or re.match(r'.*error.*', self.json_sensors):
             Clock.unschedule(self.create_button_view)
             time.sleep(2)
             sm.current = 'initial_screen'
@@ -271,6 +307,16 @@ class AboutScreen(Screen):
     pass
 
 class LogScreen(Screen):
+    def __init__(self, **kwargs):
+        super(LogScreen, self).__init__(**kwargs)
+        scrollView = ScrollView(size_hint=(1, 1))
+        l = Label(text=str('Really Long Text\n' * 30), font_size=30, text_size=(400, None), height=100, size_hint_y=None)
+        # customWidget = MyRelativeLayout(height=1200, size_hint_y=None)
+        # scrollView.add_widget(customWidget)
+        scrollView.add_widget(l)
+        self.add_widget(scrollView)
+
+class MyRelativeLayout(RelativeLayout):
     pass
 
 class SettingScreen(Screen):
@@ -362,23 +408,50 @@ Builder.load_string('''
 
 <AboutScreen>
     name: 'about_screen'
-    BoxLayout:
+    FloatLayout:
         orientation: 'vertical'
-        Image:
-            source: 'daniel_engvall.png'
-            allow_stretch: False
-            keep_ratio: True
         Label:
-            text: 'EdoAutoHome - daniel@engvalls.eu'
+            text: "EdoAutoHome - developed by daniel@engvalls.eu"
             size_hint: None, None
             font_size: self.width / 4
-            pos_hint: {'center_x': .5, 'top': .5}
+            pos_hint: {'center_x': .5, 'top': .2}
+        Label:
+            text: '(Try to pinch/rotate me)'
+            size_hint: None, None
+            font_size: self.width / 8
+            pos_hint: {'center_x': .5, 'top': .3}
+        Scatter:
+            Image:
+                source: 'daniel_engvall.png'
+                size: root.width-300, root.height-300
+                pos: root.width*0.2, root.height*0.3
+        Button:
+            text: 'Back'
+            on_press: app.root.current = 'initial_screen'
+            size_hint: None, None
 
 <LogScreen>
     name: 'log_screen'
-    BoxLayout:
-        TextInput:
-            text: 'app.data'
+
+<MyRelativeLayout>
+    canvas:
+        Color:
+            rgba: 1, .5, 0, 1
+
+        Rectangle:
+            pos: self.center_x - 15, 20
+            size: 30, self.height - (self.height / 10)
+
+    Button:
+        text: "Button 1"
+        pos: root.pos
+        size_hint: (None, None)
+
+    Button:
+        text: "Button 2"
+        pos_hint: {'center_x': .5, 'center_y': .95}
+        size_hint: (None, None)
+
 ''')
 
 class ProtocolClass(protocol.Protocol):
@@ -494,15 +567,15 @@ class MyApp(App):
 
         sm = MyScreenManager(id='manager', transition=FadeTransition())
         sm.add_widget(InitialScreen(name='initial_screen'))
-        # sm.add_widget(LogScreen(name='log_screen'))
+        sm.add_widget(LogScreen(name='log_screen'))
         sm.add_widget(AboutScreen(name='about_screen'))
         # sm.add_widget(GraphScreen(name='graph_screen'))
 
         # Test creating Scroll View
-        l = Label(text=str('Really Long Text\n' * 30), font_size=30, text_size=(400, None), height=100, size_hint_y=None)
-        s = MyScrollScreen(name='scroll_screen')
-        s.add_widget(l)
-        sm.add_widget(s)
+        ## l = Label(text=str('Really Long Text\n' * 30), font_size=30, text_size=(400, None), height=100, size_hint_y=None)
+        ## s = MyScrollScreen(name='scroll_screen')
+        ## s.add_widget(l)
+        ## sm.add_widget(s)
         # sm.add_widget(MyScrollScreen(name='scroll_screen'))
 
         sm.add_widget(ConnectingServerScreen(name='connecting_server_screen'))
@@ -557,7 +630,7 @@ class MyApp(App):
                 self.connection_screen.json_sensors = str(msg)
             print "Printing Result of JSON Sensor"
             print self.connection_screen.json_sensors
-            self.connection_screen.connection_status = 'Retrieving JSON!'
+            self.connection_screen.connection_status = 'Parsing JSON!'
             # Save to local file as debug
             with open('debug.txt', 'w') as f:
                 f.write(msg)
