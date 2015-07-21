@@ -11,7 +11,6 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.listview import ListView
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.scatter import Scatter
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
 from kivy.properties import StringProperty, ObjectProperty
 from kivy.clock import Clock
@@ -25,13 +24,16 @@ from kivy.uix.settings import (Settings, SettingsWithSidebar,
 from garden import Graph, MeshLinePlot
 import json
 
-
 from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150721.1070 $"
+__version__ = "$Revision: 20150721.1078 $"
 
+
+def get_date():
+    import time
+    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 def show_url_result(req, results):
     ''' Show result of url request '''
@@ -307,14 +309,7 @@ class AboutScreen(Screen):
     pass
 
 class LogScreen(Screen):
-    def __init__(self, **kwargs):
-        super(LogScreen, self).__init__(**kwargs)
-        scrollView = ScrollView(size_hint=(1, 1))
-        l = Label(text=str('Really Long Text\n' * 30), font_size=30, text_size=(400, None), height=100, size_hint_y=None)
-        # customWidget = MyRelativeLayout(height=1200, size_hint_y=None)
-        # scrollView.add_widget(customWidget)
-        scrollView.add_widget(l)
-        self.add_widget(scrollView)
+    pass
 
 class MyRelativeLayout(RelativeLayout):
     pass
@@ -322,32 +317,10 @@ class MyRelativeLayout(RelativeLayout):
 class SettingScreen(Screen):
     pass
 
-class MyScrollView(ScrollView):
-    def __init__(self, **kwargs):
-        super(MyScrollView, self).__init__(**kwargs)
-
-class MyScrollScreen(Screen):
-    def __init__(self, **kwargs):
-        kwargs['cols'] = 1
-        super(MyScrollScreen, self).__init__(**kwargs)
-        self.add_widget(MyScrollView())
-
-class MyFixedButton(Button):
-    pass
-
-
-config_ini = '''
-[network]
-enable = false
-'''
-
 Builder.load_string('''
 #:import FadeTransition kivy.uix.screenmanager.FadeTransition
 #:import Clock kivy.clock.Clock
 #:import partial functools
-
-<MyFixedButton>
-    height: self.texture_size[1]
 
 <InitialScreen>
     name: 'initial_screen'
@@ -356,20 +329,17 @@ Builder.load_string('''
         BoxLayout:
             orientation: 'vertical'
             Button:
-                text: 'Settings'
-                on_press: app.open_settings()
-            Button:
                 text: 'View Sensors'
                 on_press: app.root.current = 'connecting_server_screen'
             Button:
-                text: 'Log screen'
+                text: 'View App Log'
                 on_press: app.root.current = 'log_screen'
             Button:
-                text: 'About'
-                on_press: app.root.current = 'about_screen'
+                text: 'Settings'
+                on_press: app.open_settings()
             Button:
-                text: 'Scroll View'
-                on_press: app.root.current = 'scroll_screen'
+                text: 'About This App'
+                on_press: app.root.current = 'about_screen'
             Button:
                 text: 'Exit'
                 font_size: 20
@@ -499,7 +469,6 @@ class MyApp(App):
 
     def build_config(self, config):
         config.setdefaults('network', {
-                            'enable': False,
                             'ip': '127.0.0.1',
                             'port': '3000',
                             'refresh_time': '60'
@@ -514,14 +483,6 @@ class MyApp(App):
             {
                 "type": "title",
                 "title": "Server"
-            },
-            {
-                "type": "bool",
-                "title": "Enable",
-                "desc": "Enable connection to server",
-                "section": "network",
-                "key": "enable",
-                "true": "auto"
             },
             {
                 "type": "string",
@@ -557,26 +518,15 @@ class MyApp(App):
         config = self.config
         # self.settings_cls = SettingsWithSidebar
         self.settings_cls = SettingsWithTabbedPanel
+        self.use_kivy_settings = False
 
         # Clock handler
         # Clock.schedule_interval(self.timer, 20)
-
-        # Fix ScrollView
-        # container = self.root.ids.container
-        # container.add_widget(MyScrollWidget)
 
         sm = MyScreenManager(id='manager', transition=FadeTransition())
         sm.add_widget(InitialScreen(name='initial_screen'))
         sm.add_widget(LogScreen(name='log_screen'))
         sm.add_widget(AboutScreen(name='about_screen'))
-        # sm.add_widget(GraphScreen(name='graph_screen'))
-
-        # Test creating Scroll View
-        ## l = Label(text=str('Really Long Text\n' * 30), font_size=30, text_size=(400, None), height=100, size_hint_y=None)
-        ## s = MyScrollScreen(name='scroll_screen')
-        ## s.add_widget(l)
-        ## sm.add_widget(s)
-        # sm.add_widget(MyScrollScreen(name='scroll_screen'))
 
         sm.add_widget(ConnectingServerScreen(name='connecting_server_screen'))
 
