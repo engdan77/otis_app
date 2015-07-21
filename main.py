@@ -12,11 +12,12 @@ from kivy.uix.listview import ListView
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.scatter import Scatter
 from kivy.uix.widget import Widget
-from kivy.properties import StringProperty, ObjectProperty
+from kivy.properties import StringProperty, ObjectProperty, ListProperty
 from kivy.clock import Clock
 from kivy.network.urlrequest import UrlRequest
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
 from kivy.config import ConfigParser
+from kivy.adapters.simplelistadapter import SimpleListAdapter
 from kivy.uix.settings import (Settings, SettingsWithSidebar,
                                SettingsWithSpinner,
                                SettingsWithTabbedPanel)
@@ -28,7 +29,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150721.1078 $"
+__version__ = "$Revision: 20150721.1161 $"
 
 
 def get_date():
@@ -218,8 +219,6 @@ class ConnectingServerScreen(Screen):
                         text_history = []
                         for d, v in sensor_values:
                             text_history.append("%s:   %s\n" % (d, v))
-                        # box_sensor_history.add_widget(Label(halign='left', valign='top', size_hint_y=0.1, text='[color=B6BAB9]' + text_history + ')[/color]', font_size=20, markup=True))
-                        # list_view = ListView(item_strings=[str(index) for index in range(100)])
                         list_history = ListView(item_strings=text_history)
                         box_sensor_history.add_widget(list_history)
 
@@ -305,22 +304,28 @@ class ConnectingServerScreen(Screen):
         print  str(self._app.connect_to_server())
         Clock.schedule_interval(self.create_button_view, 1)
 
+
 class AboutScreen(Screen):
     pass
 
-class LogScreen(Screen):
+
+class MyLeftAlignedLabel(Label):
     pass
 
-class MyRelativeLayout(RelativeLayout):
-    pass
+class LogScreen(Screen):
+    left_label = ObjectProperty(MyLeftAlignedLabel)
+
 
 class SettingScreen(Screen):
     pass
+
 
 Builder.load_string('''
 #:import FadeTransition kivy.uix.screenmanager.FadeTransition
 #:import Clock kivy.clock.Clock
 #:import partial functools
+#:import sla kivy.adapters.simplelistadapter
+#:import label kivy.uix.label
 
 <InitialScreen>
     name: 'initial_screen'
@@ -400,28 +405,17 @@ Builder.load_string('''
             on_press: app.root.current = 'initial_screen'
             size_hint: None, None
 
-<LogScreen>
+<MyLeftAlignedLabel>
+    font_size: 20
+    halign: 'left'
+    size_hint: None, None
+    text_size: self.size
+
+<LogScreen>:
     name: 'log_screen'
-
-<MyRelativeLayout>
-    canvas:
-        Color:
-            rgba: 1, .5, 0, 1
-
-        Rectangle:
-            pos: self.center_x - 15, 20
-            size: 30, self.height - (self.height / 10)
-
-    Button:
-        text: "Button 1"
-        pos: root.pos
-        size_hint: (None, None)
-
-    Button:
-        text: "Button 2"
-        pos_hint: {'center_x': .5, 'center_y': .95}
-        size_hint: (None, None)
-
+    ListView:
+        adapter:
+            sla.SimpleListAdapter(data=["Item #{0}".format(i) for i in range(100)], cls=root.left_label)
 ''')
 
 class ProtocolClass(protocol.Protocol):
@@ -451,16 +445,13 @@ class MyScreenManager(ScreenManager):
         super(MyScreenManager, self).__init__(**kwargs)
         self._app = App.get_running_app()
 
-'''
-MyScreenManager:
-    id: manager
-    transition: FadeTransition()
-    ViewSensorScreen:
-'''
+
+
 
 class MyApp(App):
     data = StringProperty('initial text')
     connection = None
+    log_list = ListProperty([])
 
     def __init__(self, **kwargs):
         # Superclass if we like to adjust present init
