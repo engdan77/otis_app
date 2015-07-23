@@ -29,12 +29,15 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150721.1161 $"
+__version__ = "$Revision: 20150723.1210 $"
 
 
-def get_date():
+def get_date(msg):
     import time
-    return time.strftime("%Y-%m-%d %H:%M:%S")
+    if not msg:
+        return time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        return '%s: %s' % (time.strftime("%Y-%m-%d %H:%M:%S"), msg)
 
 def show_url_result(req, results):
     ''' Show result of url request '''
@@ -75,7 +78,6 @@ def updates_to_plots(last_records):
             if prev_value == 1:
                 prev_one = True
             if prev_value == 0:
-                print "door from 0 to 1"
                 prev_zero = True
             v = 1
         elif re.match(r'.*Door Close.*', v, re.IGNORECASE):
@@ -89,23 +91,15 @@ def updates_to_plots(last_records):
         # Add one where required
         if prev_one is True:
             result.append((timediff-0.0001, 1))
-            print "prepending 0.0001"
-            print result
         if prev_zero is True:
             result.append((timediff-0.0001, 0))
-            print "prepending 0.0001"
-            print result
 
         # Adding value
         result.append((timediff, v))
-        print "Adding value"
-        print result
 
         # Correct issue with Motion/Door
         if next_zero is True:
             result.append((timediff+0.0001, 0))
-            print "adding zero after"
-            print result
 
         # Store previous value
         prev_value = v
@@ -167,6 +161,7 @@ class ConnectingServerScreen(Screen):
                 # For each device create its own Screen
                 for device in j.keys():
                     print "Creating screen for device %s" % (device,)
+                    self._app.log_list.append(get_date("Creating screen for device %s" % (device,)))
                     screen_device = Screen(name=device)
 
                     # Add button for device on all_devices_boxlayout
@@ -218,10 +213,17 @@ class ConnectingServerScreen(Screen):
                         # Create history text
                         text_history = []
                         for d, v in sensor_values:
-                            text_history.append("%s:   %s\n" % (d, v))
-                        list_history = ListView(item_strings=text_history)
-                        box_sensor_history.add_widget(list_history)
+                            text_history.append(str("%s    %s" % (d, v)))
 
+                        # Create left aligned list
+                        adapter = SimpleListAdapter(data=text_history, cls=MyLeftAlignedLabel)
+                        list_view = ListView(adapter=adapter)
+                        # Fix bug with ListView to refresh if required
+                        if(hasattr(list_view, '_reset_spopulate')):
+                            print "Refresh list_view"
+                            list_view._reset_spopulate()
+                        # Add ListView to Sensor History
+                        box_sensor_history.add_widget(list_view)
                         back_button = Button(size_hint_y=0.1, font_size=20, text='Back')
                         back_button.bind(on_press=partial(self.change_screen, device + "_" + sensor_name))
                         box_sensor_history.add_widget(back_button)
@@ -245,7 +247,7 @@ class ConnectingServerScreen(Screen):
                         sensor_graph.add_plot(plot)
                         box_sensor.add_widget(sensor_graph)
 
-                        # Add buttonbar
+                        # Add buttonbar for sensor
                         box_buttons = BoxLayout(orientation='horizontal')
 
                         # Create button for history
@@ -273,14 +275,14 @@ class ConnectingServerScreen(Screen):
                         box_device.add_widget(button_sensor)
 
                     # Add Device Screen with all sensor buttons to ScreenManager
-                    back_button = Button(font_size=20, text='Back')
+                    back_button = Button(font_size=20, text='[b]Back[/b]', markup=True)
                     back_button.bind(on_press=partial(self.change_screen, 'all_devices_buttons'))
                     box_device.add_widget(back_button)
                     screen_device.add_widget(box_device)
                     sm.add_widget(screen_device)
 
                 # Adding Back button to Devices screen
-                back_button = Button(font_size=20, text='Back')
+                back_button = Button(font_size=20, text='[b]Back[/b]', markup=True)
                 back_button.bind(on_press=partial(self.change_screen, 'initial_screen'))
                 all_devices_boxlayout.add_widget(back_button)
 
@@ -293,6 +295,9 @@ class ConnectingServerScreen(Screen):
         if re.match(r'.*fail.*', self.connection_status) or re.match(r'.*error.*', self.json_sensors):
             Clock.unschedule(self.create_button_view)
             time.sleep(2)
+            self.port = self._app.config.get('network', 'port')
+            self.server = self._app.config.get('network', 'ip')
+            self.connection_status = "Connecting to %s:%s" % (self.server, self.port)
             sm.current = 'initial_screen'
 
     def call_connect_sensor_status(self, *args):
@@ -301,7 +306,8 @@ class ConnectingServerScreen(Screen):
         self.server = self._app.config.get('network', 'ip')
         # Initiate connection
         print "Connecting to %s:%s" % (self.server, self.port)
-        print  str(self._app.connect_to_server())
+        self._app.log_list.append(get_date("Connecting to %s:%s" % (self.server, self.port)))
+        print str(self._app.connect_to_server())
         Clock.schedule_interval(self.create_button_view, 1)
 
 
@@ -346,9 +352,10 @@ Builder.load_string('''
                 text: 'About This App'
                 on_press: app.root.current = 'about_screen'
             Button:
-                text: 'Exit'
+                text: '[b]Exit[/b]'
                 font_size: 20
                 on_press: app.stop()
+                markup: True
         BoxLayout:
             orientation: 'vertical'
             Image:
@@ -406,16 +413,22 @@ Builder.load_string('''
             size_hint: None, None
 
 <MyLeftAlignedLabel>
-    font_size: 20
+    font_size: 15
     halign: 'left'
-    size_hint: None, None
+    size_hint_y: None
     text_size: self.size
 
 <LogScreen>:
     name: 'log_screen'
-    ListView:
-        adapter:
-            sla.SimpleListAdapter(data=["Item #{0}".format(i) for i in range(100)], cls=root.left_label)
+    BoxLayout:
+        orientation: 'vertical'
+        ListView:
+            adapter:
+                sla.SimpleListAdapter(data=app.log_list, cls=root.left_label)
+        Button:
+            size_hint_y: 0.1
+            text: 'Back'
+            on_press: app.root.current = 'initial_screen'
 ''')
 
 class ProtocolClass(protocol.Protocol):
@@ -428,7 +441,6 @@ class ProtocolClass(protocol.Protocol):
 
 class ConnectionClass(protocol.ClientFactory):
     protocol = ProtocolClass
-
     def __init__(self, app):
         self.app = app
 
@@ -449,9 +461,9 @@ class MyScreenManager(ScreenManager):
 
 
 class MyApp(App):
-    data = StringProperty('initial text')
+    # data = StringProperty('initial text')
     connection = None
-    log_list = ListProperty([])
+    log_list = ListProperty([get_date(None) + ': Application Started'])
 
     def __init__(self, **kwargs):
         # Superclass if we like to adjust present init
@@ -547,7 +559,6 @@ class MyApp(App):
         return reactor.connectTCP(server, port, ConnectionClass(self))
 
     def on_connection(self, connection):
-        # self.print_message("connected succesfully!")
         self.connection_screen.connection_status = 'Connected succesfully, retrieving JSON data!'
         self.connection = connection
         # Send actual command to server
@@ -572,11 +583,13 @@ class MyApp(App):
             print "Printing Result of JSON Sensor"
             print self.connection_screen.json_sensors
             self.connection_screen.connection_status = 'Parsing JSON!'
+            # self.connection_status = "Connecting to %s:%s" % (self.server, self.port)
+
             # Save to local file as debug
             with open('debug.txt', 'w') as f:
                 f.write(msg)
         # Failed connection
         if msg.find("failed") > 0:
-            self.connection_screen.connection_status = 'connection failed!'
+            self.connection_screen.connection_status = 'Connection failed!'
 
 MyApp().run()
