@@ -31,7 +31,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150726.1298 $"
+__version__ = "$Revision: 20150726.1346 $"
 
 
 def get_date(msg):
@@ -132,6 +132,9 @@ class ConnectingServerScreen(Screen):
     def change_screen(self, *args):
         screen_name = args[0]
         sm = self._app.root
+        # If changing back to Initial Screen
+        if screen_name == 'initial_screen':
+            Clock.unschedule(sm.update_views)
         sm.current = screen_name
 
     def create_button_view(self, dt):
@@ -237,13 +240,13 @@ class ConnectingServerScreen(Screen):
                         # Add sensor value
                         box_sensor.add_widget(Label(text=last_value + suffix, font_size=60))
                         # Add sensor date
-                        box_sensor.add_widget(Label(size_hint_y=0.1, text='Sensor last updated ' + last_date[:-3], font_size=20))
+                        box_sensor.add_widget(Label(size_hint_y=0.1, markup=True, text='[b]Sensor last updated ' + last_date[:-3] + '[/b]\nPolled ' + get_date(None), font_size=15))
                         # Add sensor graph
                         Logger.info("Create plot for %s" % (sensor_name,))
                         Logger.info(str(sensor_plots))
                         plot = MeshLinePlot(mode='line_strip', color=[1, 0, 0, 1])
                         plot.points = sensor_plots
-                        sensor_graph = Graph(precision='%0.0f', x_grid_label=True, y_grid_label=True, xmin=xmin, xmax=0, ymin=ymin, ymax=ymax, xlabel='days ago', ylabel=suffix, x_grid=True, y_grid=False, x_ticks_major=1, y_ticks_major=1)
+                        sensor_graph = Graph(id='plots_' + sensor_name, precision='%0.0f', x_grid_label=True, y_grid_label=True, xmin=xmin, xmax=0, ymin=ymin, ymax=ymax, xlabel='days ago', ylabel=suffix, x_grid=True, y_grid=False, x_ticks_major=1, y_ticks_major=1)
                         sensor_graph.add_plot(plot)
                         box_sensor.add_widget(sensor_graph)
 
@@ -290,6 +293,8 @@ class ConnectingServerScreen(Screen):
                 Clock.unschedule(self.create_button_view)
                 # Return to buttons of all devices
                 sm.current = 'all_devices_buttons'
+                # Schedule updates from server
+                Clock.schedule_interval(sm.update_views, int(self._app.sm.settings_dict['refresh_time']))
 
         # Check if failed pause for error before return
         if re.match(r'.*fail.*', self._app.sm.connect_server_status) or re.match(r'.*error.*', self._app.sm.json_sensors):
@@ -305,8 +310,10 @@ class ConnectingServerScreen(Screen):
         self._app.config.update_config('my.ini')
         port = self._app.config.get('network', 'port')
         server = self._app.config.get('network', 'ip')
+        refresh_time = self._app.config.get('network', 'refresh_time')
         self._app.sm.settings_dict['ip'] = server
         self._app.sm.settings_dict['port'] = port
+        self._app.sm.settings_dict['refresh_time'] = refresh_time
 
         # Initiate connection
         Logger.info("Connecting to %s:%s" % (server, port))
@@ -454,7 +461,7 @@ class ConnectionClass(protocol.ClientFactory):
 
     def clientConnectionLost(self, conn, reason):
         self.app.print_message("Connection lost")
-        self.app.log_list.append(get_date("Disconnecting from server"))
+        self.app.log_list.append(get_date("Connected an disconnecting from server"))
         Logger.info('Connection lost')
 
     def clientConnectionFailed(self, conn, reason):
@@ -472,6 +479,14 @@ class MyScreenManager(ScreenManager):
         super(MyScreenManager, self).__init__(**kwargs)
         self._app = App.get_running_app()
 
+    def change_screen(self, *args):
+        screen_name = args[0]
+        sm = self._app.root
+        # If changing back to Initial Screen
+        if screen_name == 'initial_screen':
+            Clock.unschedule(sm.update_views)
+        sm.current = screen_name
+
     def refresh_variables(self):
         Logger.info("Refreshing variables after connecting to MyScreenManager")
         self._app.config.update_config('my.ini')
@@ -479,6 +494,139 @@ class MyScreenManager(ScreenManager):
         self.server = self._app.config.get('network', 'ip')
         self.connect_server_status = "Connecting to %s:%s" % (self.server, self.port)
         self.json_sensors = '....'
+
+    def update_views(self, dt):
+        ''' Method to be scheduled for updating from server '''
+        # Poll new JSON data
+        Logger.info(str(self._app.connect_to_server()))
+
+        def return_screen_object(screen_name):
+            # Iterate through all screens
+            found = None
+            for current_screen in self._app.sm.screens:
+                print current_screen
+                if current_screen.name == screen_name:
+                   found = current_screen
+            return found
+
+        ###################################################
+
+        # For each device create its own Screen
+        if re.match(r'^\{.*\}$', self._app.sm.json_sensors):
+            try:
+                j = json.loads(self._app.sm.json_sensors)
+            except Exception as e:
+                self._app.sm.json_sensors = 'Error in JSON'
+            else:
+                for device in j.keys():
+                    Logger.info("Updating screen for device %s" % (device,))
+                    self._app.log_list.append(get_date("Updating screen for device %s" % (device,)))
+
+                    # Create Device Screen with sensors
+                    box_device = BoxLayout(orientation='vertical', spacing=10)
+                    box_device.add_widget(Label(text=''))
+                    box_device.add_widget(Label(size_hint_y=0.2, text='[color=ff3333]' + device + '[/color]', font_size=40, markup=True))
+                    box_device.add_widget(Label(text=''))
+
+                    # Create Sensor Screen and button on device screen
+                    for sensor in j[device]:
+                        sensor_name = sensor.keys()[0]
+                        sensor_data = sensor[sensor_name]
+                        sensor_values = sensor_data['last_records']
+
+                        sensor_dict = updates_to_plots(sensor_values)
+                        sensor_plots = sensor_dict['plots']
+                        ymin = sensor_dict['min_y']
+                        ymax = sensor_dict['max_y']
+                        xmin = sensor_dict['min_x']
+
+                        last_date, last_value = sensor_values[-1]
+
+                        # Determine suffix
+                        suffix = ' '
+                        if re.match(r'.*temp.*', sensor_name, re.IGNORECASE):
+                            suffix = u"\u00b0C"
+                        if re.match(r'.*humid.*', sensor_name, re.IGNORECASE):
+                            suffix = " %"
+                        if re.match(r'.*smoke.*', sensor_name, re.IGNORECASE):
+                            suffix = " %"
+                        if re.match(r'.*stove.*', sensor_name, re.IGNORECASE):
+                            suffix = " %"
+
+                        sensor = device + '_' + sensor_name
+                        Logger.info(str(sensor))
+                        Logger.info("Last data %s %s" % (last_date, last_value))
+
+                        # Create new history view
+                        box_sensor_history = BoxLayout(orientation='vertical', spacing=10)
+                        box_sensor_history.add_widget(Label(size_hint_y=0.1, text='[color=B6BAB9]' + sensor_name + ' (' + device + ')[/color]', font_size=30, markup=True))
+
+                        # Create history text
+                        text_history = []
+                        for d, v in sensor_values:
+                            text_history.append(str("%s    %s" % (d, v)))
+
+                        # Create left aligned list
+                        adapter = SimpleListAdapter(data=text_history, cls=MyLeftAlignedLabel)
+                        list_view = ListView(adapter=adapter)
+                        # Fix bug with ListView to refresh if required
+                        if(hasattr(list_view, '_reset_spopulate')):
+                            Logger.info("Refresh list_view")
+                            list_view._reset_spopulate()
+                        # Add ListView to Sensor History
+                        box_sensor_history.add_widget(list_view)
+                        back_button = Button(size_hint_y=0.1, font_size=20, text='Back')
+                        back_button.bind(on_press=partial(self.change_screen, device + "_" + sensor_name))
+                        box_sensor_history.add_widget(back_button)
+
+                        screen_sensor_history = return_screen_object(device + "_" + sensor_name + '_history')
+                        screen_sensor_history.clear_widgets()
+                        screen_sensor_history.add_widget(box_sensor_history)
+                        # screen_sensor_history.add_widget(box_sensor_history)
+
+                        # Create sensor screen
+                        # screen_sensor = Screen(name=device + "_" + sensor_name)
+                        screen_sensor = return_screen_object(device + "_" + sensor_name)
+
+                        box_sensor = BoxLayout(orientation='vertical')
+                        box_sensor.add_widget(Label(size_hint_y=0.1, text='[color=B6BAB9]' + sensor_name + ' (' + device + ')[/color]', font_size=30, markup=True))
+                        # Add sensor value
+                        box_sensor.add_widget(Label(text=last_value + suffix, font_size=60))
+                        # Add sensor date
+                        box_sensor.add_widget(Label(size_hint_y=0.1, markup=True, text='[b]Sensor last updated ' + last_date[:-3] + '[/b]\nPolled ' + get_date(None), font_size=15))
+                        # Add sensor graph
+                        Logger.info("Create plot for %s" % (sensor_name,))
+                        Logger.info(str(sensor_plots))
+                        plot = MeshLinePlot(mode='line_strip', color=[1, 0, 0, 1])
+                        plot.points = sensor_plots
+                        sensor_graph = Graph(id='plots_' + sensor_name, precision='%0.0f', x_grid_label=True, y_grid_label=True, xmin=xmin, xmax=0, ymin=ymin, ymax=ymax, xlabel='days ago', ylabel=suffix, x_grid=True, y_grid=False, x_ticks_major=1, y_ticks_major=1)
+                        sensor_graph.add_plot(plot)
+                        box_sensor.add_widget(sensor_graph)
+
+                        # Add buttonbar for sensor
+                        box_buttons = BoxLayout(orientation='horizontal')
+
+                        # Create button for history
+                        history_button = Button(size_hint_y=0.2, font_size=20, text='History')
+                        history_button.bind(on_press=partial(self.change_screen, device + "_" + sensor_name + "_history"))
+
+                        # Create Back button
+                        back_button = Button(size_hint_y=0.2, font_size=20, text='Back')
+                        back_button.bind(on_press=partial(self.change_screen, device))
+
+                        # Add buttons to row
+                        box_buttons.add_widget(back_button)
+                        box_buttons.add_widget(history_button)
+
+                        # Add row to screen
+                        box_sensor.add_widget(box_buttons)
+
+                        # Add all of it to screen
+                        screen_sensor.clear_widgets()
+                        screen_sensor.add_widget(box_sensor)
+
+
+        ##################################################
 
 
 class MyApp(App):
