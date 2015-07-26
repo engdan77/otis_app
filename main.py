@@ -1,7 +1,9 @@
 import re
 from functools import partial
+from collections import namedtuple
 from kivy.app import App
 from kivy.lang import Builder
+from kivy.logger import Logger
 from kivy.factory import Factory
 from kivy.animation import Animation
 from kivy.uix.label import Label
@@ -12,7 +14,7 @@ from kivy.uix.listview import ListView
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.scatter import Scatter
 from kivy.uix.widget import Widget
-from kivy.properties import StringProperty, ObjectProperty, ListProperty
+from kivy.properties import StringProperty, ObjectProperty, ListProperty, DictProperty
 from kivy.clock import Clock
 from kivy.network.urlrequest import UrlRequest
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
@@ -29,7 +31,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150723.1210 $"
+__version__ = "$Revision: 20150726.1298 $"
 
 
 def get_date(msg):
@@ -41,8 +43,8 @@ def get_date(msg):
 
 def show_url_result(req, results):
     ''' Show result of url request '''
-    print "req: %s" % (str(req),)
-    print "results: %s" % (str(results),)
+    Logger.info("req: %s" % (str(req),))
+    Logger.info("results: %s" % (str(results),))
 
 def updates_to_plots(last_records):
     ''' Convert last records to graph plots '''
@@ -50,9 +52,9 @@ def updates_to_plots(last_records):
     import re
     last_records.reverse()
     last_records = sorted(last_records)
-    print '='*30
-    print last_records
-    print '='*30
+    Logger.info('='*30)
+    Logger.info(str(last_records))
+    Logger.info('='*30)
     result = []
 
     d_fmt = '%Y-%m-%d %H:%M:%S'
@@ -121,20 +123,18 @@ def updates_to_plots(last_records):
     # Return result as dict
     return {'plots': result, 'min_y': min_y_value, 'max_y': max_y_value, 'min_x': min_x_value}
 
+
 class InitialScreen(Screen):
     version = StringProperty(__version__.replace('$', ''))
 
-class ConnectingServerScreen(Screen):
-    _app = ObjectProperty(None)
-    connection_status = StringProperty('None')
-    json_sensors = StringProperty('........')
 
+class ConnectingServerScreen(Screen):
     def change_screen(self, *args):
         screen_name = args[0]
         sm = self._app.root
         sm.current = screen_name
 
-    def create_button_view(self, json_sensors):
+    def create_button_view(self, dt):
         import json
         import time
 
@@ -142,11 +142,11 @@ class ConnectingServerScreen(Screen):
         sm = self._app.root
 
         # Check that JSON been recieved
-        if re.match(r'^\{.*\}$', self.json_sensors):
+        if re.match(r'^\{.*\}$', self._app.sm.json_sensors):
             try:
-                j = json.loads(self.json_sensors)
+                j = json.loads(self._app.sm.json_sensors)
             except Exception as e:
-                self.json_sensors = 'Error in JSON'
+                self._app.sm.json_sensors = 'Error in JSON'
             else:
                 all_devices_boxlayout = BoxLayout(orientation='vertical', spacing=10)
                 all_devices_boxlayout.add_widget(Label(text=''))
@@ -160,7 +160,7 @@ class ConnectingServerScreen(Screen):
 
                 # For each device create its own Screen
                 for device in j.keys():
-                    print "Creating screen for device %s" % (device,)
+                    Logger.info("Creating screen for device %s" % (device,))
                     self._app.log_list.append(get_date("Creating screen for device %s" % (device,)))
                     screen_device = Screen(name=device)
 
@@ -202,8 +202,8 @@ class ConnectingServerScreen(Screen):
                             suffix = " %"
 
                         sensor = device + '_' + sensor_name
-                        print sensor
-                        print "Last data %s %s" % (last_date, last_value)
+                        Logger.info(str(sensor))
+                        Logger.info("Last data %s %s" % (last_date, last_value))
 
                         # Create history view
                         screen_sensor_history = Screen(name=device + "_" + sensor_name + "_history")
@@ -220,7 +220,7 @@ class ConnectingServerScreen(Screen):
                         list_view = ListView(adapter=adapter)
                         # Fix bug with ListView to refresh if required
                         if(hasattr(list_view, '_reset_spopulate')):
-                            print "Refresh list_view"
+                            Logger.info("Refresh list_view")
                             list_view._reset_spopulate()
                         # Add ListView to Sensor History
                         box_sensor_history.add_widget(list_view)
@@ -239,8 +239,8 @@ class ConnectingServerScreen(Screen):
                         # Add sensor date
                         box_sensor.add_widget(Label(size_hint_y=0.1, text='Sensor last updated ' + last_date[:-3], font_size=20))
                         # Add sensor graph
-                        print "Create plot for %s" % (sensor_name,)
-                        print sensor_plots
+                        Logger.info("Create plot for %s" % (sensor_name,))
+                        Logger.info(str(sensor_plots))
                         plot = MeshLinePlot(mode='line_strip', color=[1, 0, 0, 1])
                         plot.points = sensor_plots
                         sensor_graph = Graph(precision='%0.0f', x_grid_label=True, y_grid_label=True, xmin=xmin, xmax=0, ymin=ymin, ymax=ymax, xlabel='days ago', ylabel=suffix, x_grid=True, y_grid=False, x_ticks_major=1, y_ticks_major=1)
@@ -292,22 +292,26 @@ class ConnectingServerScreen(Screen):
                 sm.current = 'all_devices_buttons'
 
         # Check if failed pause for error before return
-        if re.match(r'.*fail.*', self.connection_status) or re.match(r'.*error.*', self.json_sensors):
+        if re.match(r'.*fail.*', self._app.sm.connect_server_status) or re.match(r'.*error.*', self._app.sm.json_sensors):
             Clock.unschedule(self.create_button_view)
             time.sleep(2)
             self.port = self._app.config.get('network', 'port')
             self.server = self._app.config.get('network', 'ip')
-            self.connection_status = "Connecting to %s:%s" % (self.server, self.port)
+            self._app.sm.connect_server_status = "Connecting to %s:%s" % (self.server, self.port)
             sm.current = 'initial_screen'
 
-    def call_connect_sensor_status(self, *args):
+    def call_connect_sensor_status(self, dt):
         ''' Function that connects and retrieves json '''
-        self.port = self._app.config.get('network', 'port')
-        self.server = self._app.config.get('network', 'ip')
+        self._app.config.update_config('my.ini')
+        port = self._app.config.get('network', 'port')
+        server = self._app.config.get('network', 'ip')
+        self._app.sm.settings_dict['ip'] = server
+        self._app.sm.settings_dict['port'] = port
+
         # Initiate connection
-        print "Connecting to %s:%s" % (self.server, self.port)
-        self._app.log_list.append(get_date("Connecting to %s:%s" % (self.server, self.port)))
-        print str(self._app.connect_to_server())
+        Logger.info("Connecting to %s:%s" % (server, port))
+        self._app.log_list.append(get_date("Connecting to %s:%s" % (server, port)))
+        Logger.info(str(self._app.connect_to_server()))
         Clock.schedule_interval(self.create_button_view, 1)
 
 
@@ -317,6 +321,7 @@ class AboutScreen(Screen):
 
 class MyLeftAlignedLabel(Label):
     pass
+
 
 class LogScreen(Screen):
     left_label = ObjectProperty(MyLeftAlignedLabel)
@@ -335,13 +340,14 @@ Builder.load_string('''
 
 <InitialScreen>
     name: 'initial_screen'
+    _app: app
     BoxLayout:
         orientation: 'horizontal'
         BoxLayout:
             orientation: 'vertical'
             Button:
                 text: 'View Sensors'
-                on_press: app.root.current = 'connecting_server_screen'
+                on_press: root._app.sm.refresh_variables(); app.root.current = 'connecting_server_screen'
             Button:
                 text: 'View App Log'
                 on_press: app.root.current = 'log_screen'
@@ -373,12 +379,13 @@ Builder.load_string('''
 <ConnectingServerScreen>
     name: 'connecting_server_screen'
     id: 'connecting_server_screen'
-    on_enter: Clock.schedule_once(self.call_connect_sensor_status, 3)
+    on_enter: Clock.schedule_once(self.call_connect_sensor_status)
+    _app: app
     BoxLayout:
         orientation: 'vertical'
         Label:
             font_size: 30
-            text: root.connection_status
+            text: app.sm.connect_server_status
         Image:
             source: 'RingGreen.zip'
             allow_stretch: False
@@ -386,7 +393,7 @@ Builder.load_string('''
             anim_delay: 0.02
         Label:
             font_size: 20
-            text: root.json_sensors[:40]
+            text: app.sm.json_sensors[:40]
 
 <AboutScreen>
     name: 'about_screen'
@@ -431,6 +438,7 @@ Builder.load_string('''
             on_press: app.root.current = 'initial_screen'
 ''')
 
+
 class ProtocolClass(protocol.Protocol):
     def connectionMade(self):
         self.factory.app.on_connection(self.transport)
@@ -445,23 +453,37 @@ class ConnectionClass(protocol.ClientFactory):
         self.app = app
 
     def clientConnectionLost(self, conn, reason):
-        self.app.print_message("connection lost")
+        self.app.print_message("Connection lost")
+        self.app.log_list.append(get_date("Disconnecting from server"))
+        Logger.info('Connection lost')
 
     def clientConnectionFailed(self, conn, reason):
-        self.app.print_message("connection failed")
+        self.app.print_message("Connection failed")
+        self.app.log_list.append(get_date("Connection failed"))
+        Logger.error('Connection failed')
 
 
 class MyScreenManager(ScreenManager):
-    connect_server_status = StringProperty('A Initiating connection')
+    connect_server_status = StringProperty('Initiating connection')
+    json_sensors = StringProperty('........')
+    settings_dict = DictProperty()
+
     def __init__(self, **kwargs):
         super(MyScreenManager, self).__init__(**kwargs)
         self._app = App.get_running_app()
 
-
+    def refresh_variables(self):
+        Logger.info("Refreshing variables after connecting to MyScreenManager")
+        self._app.config.update_config('my.ini')
+        self.port = self._app.config.get('network', 'port')
+        self.server = self._app.config.get('network', 'ip')
+        self.connect_server_status = "Connecting to %s:%s" % (self.server, self.port)
+        self.json_sensors = '....'
 
 
 class MyApp(App):
-    # data = StringProperty('initial text')
+    sm = ObjectProperty()
+    settings = DictProperty({'apa': 1})
     connection = None
     log_list = ListProperty([get_date(None) + ': Application Started'])
 
@@ -512,13 +534,13 @@ class MyApp(App):
         ]'''
         settings.add_json_panel('EdoAutoHome', self.config, data=self.setting_json)
 
-
     def build(self):
         import time
         super(MyApp, self).build()
 
         # Configuration settings
         config = self.config
+
         # self.settings_cls = SettingsWithSidebar
         self.settings_cls = SettingsWithTabbedPanel
         self.use_kivy_settings = False
@@ -526,24 +548,14 @@ class MyApp(App):
         # Clock handler
         # Clock.schedule_interval(self.timer, 20)
 
-        sm = MyScreenManager(id='manager', transition=FadeTransition())
-        sm.add_widget(InitialScreen(name='initial_screen'))
-        sm.add_widget(LogScreen(name='log_screen'))
-        sm.add_widget(AboutScreen(name='about_screen'))
-
-        sm.add_widget(ConnectingServerScreen(name='connecting_server_screen'))
-
-        # Add configuration to ConnectingServerScreen
-        for screen in sm.screens:
-            if screen.name == 'connecting_server_screen':
-                screen._app = App.get_running_app()
-                port = self.config.get('network', 'port')
-                server = self.config.get('network', 'ip')
-                self.connection_screen = screen
-                screen.connection_status = "Connecting to %s:%s" % (server, port)
+        self.sm = MyScreenManager(id='manager', transition=FadeTransition())
+        self.sm.add_widget(InitialScreen(name='initial_screen'))
+        self.sm.add_widget(LogScreen(name='log_screen'))
+        self.sm.add_widget(AboutScreen(name='about_screen'))
+        self.sm.add_widget(ConnectingServerScreen(name='connecting_server_screen'))
 
         # Return ScreenManager
-        return sm
+        return self.sm
 
     def timer(self, dt):
         # self.connect_to_server()
@@ -551,7 +563,7 @@ class MyApp(App):
         pass
 
     def on_stop(self):
-        print "Good Bye!!"
+        Logger.info("Good Bye!!")
 
     def connect_to_server(self):
         server = str(self.config.get('network', 'ip'))
@@ -559,7 +571,7 @@ class MyApp(App):
         return reactor.connectTCP(server, port, ConnectionClass(self))
 
     def on_connection(self, connection):
-        self.connection_screen.connection_status = 'Connected succesfully, retrieving JSON data!'
+        self.sm.connect_server_status = 'Connected succesfully, retrieving JSON data!'
         self.connection = connection
         # Send actual command to server
         self.send_message()
@@ -567,7 +579,7 @@ class MyApp(App):
     def send_message(self, *args):
         msg = '"show_status_json"'
         if msg and self.connection:
-            print "Sending %s" % (msg,)
+            Logger.info("Sending %s" % (msg,))
             self.connection.write(msg)
 
     def print_message(self, msg):
@@ -575,21 +587,20 @@ class MyApp(App):
         # Successfully receieved JSON
         if str(msg).find('{') > 0 or str(msg).find('}') > 0:
             if not str(msg)[0] == '{':
-                print "Appending JSON"
-                self.connection_screen.json_sensors += str(msg)
+                Logger.info("Appending JSON")
+                self.sm.json_sensors += str(msg)
             else:
-                print "Found JSON"
-                self.connection_screen.json_sensors = str(msg)
-            print "Printing Result of JSON Sensor"
-            print self.connection_screen.json_sensors
-            self.connection_screen.connection_status = 'Parsing JSON!'
-            # self.connection_status = "Connecting to %s:%s" % (self.server, self.port)
+                Logger.info("Found JSON")
+                self.sm.json_sensors = str(msg)
+            Logger.info("Printing Result of JSON Sensor")
+            Logger.info(str(self.sm.json_sensors))
+            self.sm.connect_server_status = 'Parsing JSON!'
 
             # Save to local file as debug
             with open('debug.txt', 'w') as f:
                 f.write(msg)
         # Failed connection
         if msg.find("failed") > 0:
-            self.connection_screen.connection_status = 'Connection failed!'
+            self.sm.connect_server_status = 'Connection failed!'
 
 MyApp().run()
