@@ -8,13 +8,14 @@ from kivy.factory import Factory
 from kivy.animation import Animation
 from kivy.uix.label import Label
 from kivy.uix.button import Button
+from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.listview import ListView
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.scatter import Scatter
 from kivy.uix.widget import Widget
-from kivy.properties import StringProperty, ObjectProperty, ListProperty, DictProperty
+from kivy.properties import StringProperty, ObjectProperty, ListProperty, DictProperty, NumericProperty
 from kivy.clock import Clock
 from kivy.network.urlrequest import UrlRequest
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
@@ -31,7 +32,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150726.1346 $"
+__version__ = "$Revision: 20150727.1393 $"
 
 
 def get_date(msg):
@@ -129,6 +130,7 @@ class InitialScreen(Screen):
 
 
 class ConnectingServerScreen(Screen):
+    slideshow_all_sensor_counter = NumericProperty(0)
     def change_screen(self, *args):
         screen_name = args[0]
         sm = self._app.root
@@ -136,6 +138,34 @@ class ConnectingServerScreen(Screen):
         if screen_name == 'initial_screen':
             Clock.unschedule(sm.update_views)
         sm.current = screen_name
+
+    def control_slideshow_all_sensors(self, button, *args):
+        Logger.info('Slideshow for all sensors button is %s' % (button.state,))
+        self._app.log_list.append(get_date('Slideshow for all sensors button is %s' % (button.state,)))
+
+        if button.state == 'down':
+            self.timeout = int(self._app.sm.settings_dict['slideshow_refresh_time'])
+            self.slideshow_all_sensors_counter = self.timeout
+            print self.slideshow_all_sensors_counter
+            device_screen = self._app.sm.get_screen('all_devices_buttons')
+            for widget in device_screen.walk():
+                button = widget
+                if widget.id == 'slide_all_button':
+                    button.text = 'Slideshow All Sensors (' + str(self.slideshow_all_sensor_counter) + ')'
+            Clock.schedule_interval(self.slideshow_all_sensors, self.timeout)
+        if button.state == 'normal':
+            button.text = 'Slideshow All Sensors'
+            Clock.unschedule(self.slideshow_all_sensors)
+
+    def slideshow_all_sensors(self, dt):
+        self.slideshow_all_sensor_counter -= 1
+        print self.slideshow_all_sensors_counter
+        device_screen = self._app.sm.get_screen('all_devices_buttons')
+        for widget in device_screen.walk():
+            button = widget
+            if widget.id == 'slide_all_button':
+                button.text = 'Slideshow All Sensors (' + str(self.slideshow_all_sensor_counter) + ')'
+
 
     def create_button_view(self, dt):
         import json
@@ -155,7 +185,7 @@ class ConnectingServerScreen(Screen):
                 all_devices_boxlayout.add_widget(Label(text=''))
                 all_devices_boxlayout.add_widget(Label(size_hint_y=0.2, text='[color=ff3333]Devices[/color]', font_size=40, markup=True))
                 all_devices_boxlayout.add_widget(Label(text=''))
-                all_devices_screen = Screen(name='all_devices_buttons')
+                all_devices_screen = Screen(id='all_devices_buttons', name='all_devices_buttons')
                 all_devices_screen.add_widget(all_devices_boxlayout)
                 sm.add_widget(all_devices_screen)
 
@@ -287,7 +317,12 @@ class ConnectingServerScreen(Screen):
                 # Adding Back button to Devices screen
                 back_button = Button(font_size=20, text='[b]Back[/b]', markup=True)
                 back_button.bind(on_press=partial(self.change_screen, 'initial_screen'))
-                all_devices_boxlayout.add_widget(back_button)
+                all_devices_buttonrow = BoxLayout(orientation='horizontal')
+                all_devices_buttonrow.add_widget(back_button)
+                slide_all_button = ToggleButton(id='slide_all_button', font_size=20, text='Slideshow All Sensors')
+                slide_all_button.bind(on_press=partial(self.control_slideshow_all_sensors, slide_all_button))
+                all_devices_buttonrow.add_widget(slide_all_button)
+                all_devices_boxlayout.add_widget(all_devices_buttonrow)
 
                 # Unschedule timer
                 Clock.unschedule(self.create_button_view)
@@ -311,9 +346,11 @@ class ConnectingServerScreen(Screen):
         port = self._app.config.get('network', 'port')
         server = self._app.config.get('network', 'ip')
         refresh_time = self._app.config.get('network', 'refresh_time')
+        slideshow_refresh_time = self._app.config.get('other', 'slideshow_refresh_time')
         self._app.sm.settings_dict['ip'] = server
         self._app.sm.settings_dict['port'] = port
         self._app.sm.settings_dict['refresh_time'] = refresh_time
+        self._app.sm.settings_dict['slideshow_refresh_time'] = slideshow_refresh_time
 
         # Initiate connection
         Logger.info("Connecting to %s:%s" % (server, port))
@@ -461,7 +498,7 @@ class ConnectionClass(protocol.ClientFactory):
 
     def clientConnectionLost(self, conn, reason):
         self.app.print_message("Connection lost")
-        self.app.log_list.append(get_date("Connected an disconnecting from server"))
+        self.app.log_list.append(get_date("Connected and disconnecting from server"))
         Logger.info('Connection lost')
 
     def clientConnectionFailed(self, conn, reason):
@@ -509,9 +546,7 @@ class MyScreenManager(ScreenManager):
                    found = current_screen
             return found
 
-        ###################################################
-
-        # For each device create its own Screen
+        # For each device update Screen
         if re.match(r'^\{.*\}$', self._app.sm.json_sensors):
             try:
                 j = json.loads(self._app.sm.json_sensors)
@@ -584,8 +619,6 @@ class MyScreenManager(ScreenManager):
                         screen_sensor_history.add_widget(box_sensor_history)
                         # screen_sensor_history.add_widget(box_sensor_history)
 
-                        # Create sensor screen
-                        # screen_sensor = Screen(name=device + "_" + sensor_name)
                         screen_sensor = return_screen_object(device + "_" + sensor_name)
 
                         box_sensor = BoxLayout(orientation='vertical')
@@ -626,9 +659,6 @@ class MyScreenManager(ScreenManager):
                         screen_sensor.add_widget(box_sensor)
 
 
-        ##################################################
-
-
 class MyApp(App):
     sm = ObjectProperty()
     settings = DictProperty({'apa': 1})
@@ -644,8 +674,8 @@ class MyApp(App):
         config.setdefaults('network', {
                             'ip': '127.0.0.1',
                             'port': '3000',
-                            'refresh_time': '60'
-                            })
+                            'refresh_time': '60'})
+        config.setdefaults('other', {'slideshow_refresh_time': '60'})
 
     def on_config_change(self, config, section, key, value):
        pass
@@ -673,10 +703,17 @@ class MyApp(App):
             },
             {
                 "type": "numeric",
-                "title": "Refresh Time",
-                "desc": "Number of seconds before refresh",
+                "title": "Server Refresh Time",
+                "desc": "Number of seconds before refresh status from server",
                 "section": "network",
                 "key": "refresh_time"
+            },
+            {
+                "type": "numeric",
+                "title": "Slideshow Refresh Time",
+                "desc": "Number of seconds for each slide",
+                "section": "other",
+                "key": "slideshow_refresh_time"
             }
 
         ]'''
