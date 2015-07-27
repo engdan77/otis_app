@@ -32,7 +32,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150727.1393 $"
+__version__ = "$Revision: 20150727.1414 $"
 
 
 def get_date(msg):
@@ -50,7 +50,6 @@ def show_url_result(req, results):
 def updates_to_plots(last_records):
     ''' Convert last records to graph plots '''
     from datetime import datetime
-    import re
     last_records.reverse()
     last_records = sorted(last_records)
     Logger.info('='*30)
@@ -130,7 +129,10 @@ class InitialScreen(Screen):
 
 
 class ConnectingServerScreen(Screen):
-    slideshow_all_sensor_counter = NumericProperty(0)
+    slideshow_all_sensors_counter = NumericProperty(0)
+    slideshow_all_sensors_screens = ListProperty([])
+    slideshow_all_sensors_index = NumericProperty(0)
+
     def change_screen(self, *args):
         screen_name = args[0]
         sm = self._app.root
@@ -144,28 +146,38 @@ class ConnectingServerScreen(Screen):
         self._app.log_list.append(get_date('Slideshow for all sensors button is %s' % (button.state,)))
 
         if button.state == 'down':
+            # Create list of screens to switch between
+            for screen in self._app.sm.screens:
+                if re.match(r'[^-]+-[^_]+_[^_]+$', screen.name):
+                    self.slideshow_all_sensors_screens.append(screen)
             self.timeout = int(self._app.sm.settings_dict['slideshow_refresh_time'])
             self.slideshow_all_sensors_counter = self.timeout
-            print self.slideshow_all_sensors_counter
             device_screen = self._app.sm.get_screen('all_devices_buttons')
+            # Search for button object
             for widget in device_screen.walk():
                 button = widget
                 if widget.id == 'slide_all_button':
-                    button.text = 'Slideshow All Sensors (' + str(self.slideshow_all_sensor_counter) + ')'
-            Clock.schedule_interval(self.slideshow_all_sensors, self.timeout)
+                    button.text = 'Slideshow All Sensors (' + str(self.slideshow_all_sensors_counter) + ')'
+            Clock.schedule_interval(self.slideshow_all_sensors, 1)
         if button.state == 'normal':
             button.text = 'Slideshow All Sensors'
             Clock.unschedule(self.slideshow_all_sensors)
 
     def slideshow_all_sensors(self, dt):
-        self.slideshow_all_sensor_counter -= 1
-        print self.slideshow_all_sensors_counter
+        self.slideshow_all_sensors_counter -= 1
         device_screen = self._app.sm.get_screen('all_devices_buttons')
         for widget in device_screen.walk():
             button = widget
             if widget.id == 'slide_all_button':
-                button.text = 'Slideshow All Sensors (' + str(self.slideshow_all_sensor_counter) + ')'
-
+                button.text = 'Slideshow All Sensors (' + str(self.slideshow_all_sensors_counter) + ')'
+        if self.slideshow_all_sensors_counter == 0:
+            self.slideshow_all_sensors_counter = self.timeout
+            if self.slideshow_all_sensors_index < len(self.slideshow_all_sensors_screens)-1:
+                self.slideshow_all_sensors_index += 1
+            else:
+                 self.slideshow_all_sensors_index = 0
+            # Switch to next sensor screen
+            self.change_screen(self.slideshow_all_sensors_screens[self.slideshow_all_sensors_index].name)
 
     def create_button_view(self, dt):
         import json
@@ -438,6 +450,11 @@ Builder.load_string('''
         Label:
             font_size: 20
             text: app.sm.json_sensors[:40]
+        Button:
+            font_size: 20
+            text: 'Abort'
+            size_hint_y: 0.2
+            on_press: Clock.unschedule(root.create_button_view); app.sm.current = 'initial_screen'
 
 <AboutScreen>
     name: 'about_screen'
@@ -541,7 +558,6 @@ class MyScreenManager(ScreenManager):
             # Iterate through all screens
             found = None
             for current_screen in self._app.sm.screens:
-                print current_screen
                 if current_screen.name == screen_name:
                    found = current_screen
             return found
