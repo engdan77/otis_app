@@ -1,6 +1,7 @@
 import re
 from functools import partial
 from collections import namedtuple
+import webbrowser
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -15,6 +16,9 @@ from kivy.uix.listview import ListView
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.scatter import Scatter
 from kivy.uix.widget import Widget
+from kivy.core.image import Image
+from kivy.core.window import Window
+from kivy.animation import Animation
 from kivy.properties import StringProperty, ObjectProperty, ListProperty, DictProperty, NumericProperty
 from kivy.clock import Clock
 from kivy.network.urlrequest import UrlRequest
@@ -32,7 +36,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150727.1414 $"
+__version__ = "$Revision: 20150729.1555 $"
 
 
 def get_date(msg):
@@ -66,7 +70,6 @@ def updates_to_plots(last_records):
         # Divide timediff in seconds by one day to get how many days diff
         timediff = float(int(now.strftime('%s')) - int(d.strftime('%s'))) / 86400
         timediff = 0 - float(format(timediff, '.4f'))
-        # timediff = float(format(0 - (timediff.seconds / float(86400)), '.4f'))
 
         # Change value if required
         next_zero = None
@@ -88,7 +91,6 @@ def updates_to_plots(last_records):
             v = 0
         else:
             v = float(v)
-
 
         # Add one where required
         if prev_one is True:
@@ -126,6 +128,24 @@ def updates_to_plots(last_records):
 
 class InitialScreen(Screen):
     version = StringProperty(__version__.replace('$', ''))
+    logo_image = ObjectProperty(None)
+
+    def __init__(self, **kwargs):
+        super(InitialScreen, self).__init__(**kwargs)
+        self.logo_image = Image('logo.png')
+
+    def move_logo(self, *args):
+        screen = self._app.sm.get_screen('initial_screen')
+        logo_object = screen.ids['logo']
+        window_x, window_y = Window.size
+        anim = Animation(y=window_y-(window_y/1.5), duration=6, t='in_bounce') + Animation(y=0, duration=6, t='out_bounce')
+        anim.repeat = True
+        anim.start(logo_object)
+
+    def stop_logo(self, *args):
+        screen = self._app.sm.get_screen('initial_screen')
+        logo_object = screen.ids['logo']
+        Animation.cancel_all(logo_object)
 
 
 class ConnectingServerScreen(Screen):
@@ -202,7 +222,6 @@ class ConnectingServerScreen(Screen):
                 sm.add_widget(all_devices_screen)
 
                 # Bulding new screens for list of devices and sensors based on json
-
                 # For each device create its own Screen
                 for device in j.keys():
                     Logger.info("Creating screen for device %s" % (device,))
@@ -282,7 +301,7 @@ class ConnectingServerScreen(Screen):
                         # Add sensor value
                         box_sensor.add_widget(Label(text=last_value + suffix, font_size=60))
                         # Add sensor date
-                        box_sensor.add_widget(Label(size_hint_y=0.1, markup=True, text='[b]Sensor last updated ' + last_date[:-3] + '[/b]\nPolled ' + get_date(None), font_size=15))
+                        box_sensor.add_widget(Label(size_hint_y=0.1, markup=True, text='[b]Sensor last updated ' + last_date[:-3] + '[/b]\nPolled ' + get_date(None)[:-3], font_size=15))
                         # Add sensor graph
                         Logger.info("Create plot for %s" % (sensor_name,))
                         Logger.info(str(sensor_plots))
@@ -372,8 +391,29 @@ class ConnectingServerScreen(Screen):
 
 
 class AboutScreen(Screen):
-    pass
+    def move_text(self, *args):
+        screen = self._app.sm.get_screen('about_screen')
+        text_object = screen.ids['moving_text']
+        window_x, window_y = Window.size
+        center_x = window_x/2
+        center_x = 10
+        center_y = window_y/2
+        center_y = 10
+        dia = 200
+        dur = 3
+        t = 'in_out_circ'
+        anim = Animation(x=center_x, y=center_y-dia, duration=dur, t=t) + Animation(x=center_x+dia, y=center_y, duration=dur, t=t) + Animation(x=center_x, y=center_y+dia, duration=dur, t=t) + Animation(x=center_x-dia, y=center_y, duration=dur, t=t)
+        anim.repeat = True
+        anim.start(text_object)
 
+    def stop_text(self, *args):
+        screen = self._app.sm.get_screen('about_screen')
+        text_object = screen.ids['moving_text']
+        Animation.cancel_all(text_object)
+
+    def open_browser(self, *args):
+        url = 'https://github.com/engdan77'
+        webbrowser.open(url)
 
 class MyLeftAlignedLabel(Label):
     pass
@@ -393,10 +433,13 @@ Builder.load_string('''
 #:import partial functools
 #:import sla kivy.adapters.simplelistadapter
 #:import label kivy.uix.label
+#:import window kivy.core.window
 
 <InitialScreen>
     name: 'initial_screen'
     _app: app
+    on_enter: self.move_logo(self)
+    on_leave: self.stop_logo(self)
     BoxLayout:
         orientation: 'horizontal'
         BoxLayout:
@@ -420,10 +463,13 @@ Builder.load_string('''
                 markup: True
         BoxLayout:
             orientation: 'vertical'
+            id: right_pane
             Image:
+                id: logo
                 source: 'logo.png'
                 allow_stretch: False
                 keep_ratio: True
+                pos_hint: {'center_x': .5, 'top': .9}
             Label:
                 text: root.version
                 size_hint: None, None
@@ -458,27 +504,37 @@ Builder.load_string('''
 
 <AboutScreen>
     name: 'about_screen'
+    _app: app
+    on_enter: self.move_text(self)
+    on_leave: self.stop_text(self)
     FloatLayout:
         orientation: 'vertical'
-        Label:
-            text: "EdoAutoHome - developed by daniel@engvalls.eu"
-            size_hint: None, None
-            font_size: self.width / 4
-            pos_hint: {'center_x': .5, 'top': .2}
-        Label:
-            text: '(Try to pinch/rotate me)'
-            size_hint: None, None
-            font_size: self.width / 8
-            pos_hint: {'center_x': .5, 'top': .3}
-        Scatter:
-            Image:
-                source: 'daniel_engvall.png'
-                size: root.width-300, root.height-300
-                pos: root.width*0.2, root.height*0.3
         Button:
+            index: 3
             text: 'Back'
             on_press: app.root.current = 'initial_screen'
             size_hint: None, None
+        Label:
+            index: 2
+            text: "[color=ff3333][b]EdoAutoHome[/b][/color]\\nDeveloped by daniel@engvalls.eu\\n[color=0000ff][ref=url]https://github.com/engdan77[/ref][/font]"
+            markup: True
+            on_ref_press: root.open_browser(self)
+            size_hint: None, None
+            font_size: self.width / 5
+            pos_hint: {'center_x': .5, 'top': .2}
+        Scatter:
+            index: 0
+            bbox: ((100, 100), (200, 200))
+            Image:
+                center: self.parent.center
+                source: 'daniel_engvall.png'
+                size: root.width-400, root.height-400
+        Label:
+            index: 1
+            id: moving_text
+            text: '[color=A31B00]Try to pinch/rotate me...[/color]'
+            markup: True
+            pos: 50, 50
 
 <MyLeftAlignedLabel>
     font_size: 15
@@ -633,8 +689,6 @@ class MyScreenManager(ScreenManager):
                         screen_sensor_history = return_screen_object(device + "_" + sensor_name + '_history')
                         screen_sensor_history.clear_widgets()
                         screen_sensor_history.add_widget(box_sensor_history)
-                        # screen_sensor_history.add_widget(box_sensor_history)
-
                         screen_sensor = return_screen_object(device + "_" + sensor_name)
 
                         box_sensor = BoxLayout(orientation='vertical')
@@ -739,6 +793,10 @@ class MyApp(App):
         import time
         super(MyApp, self).build()
 
+        # Set icon and name
+        self.title = 'AutoHomeMobile'
+        self.icon = 'icon.png'
+
         # Configuration settings
         config = self.config
 
@@ -757,11 +815,6 @@ class MyApp(App):
 
         # Return ScreenManager
         return self.sm
-
-    def timer(self, dt):
-        # self.connect_to_server()
-        # self.send_message()
-        pass
 
     def on_stop(self):
         Logger.info("Good Bye!!")
