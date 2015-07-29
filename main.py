@@ -36,7 +36,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150729.1562 $"
+__version__ = "$Revision: 20150729.1568 $"
 
 
 def get_date(msg):
@@ -606,6 +606,12 @@ class MyScreenManager(ScreenManager):
         # Poll new JSON data
         Logger.info(str(self._app.connect_to_server()))
 
+        # Clean records in log_screen if too many lines
+        if len(self._app.log_list) > 2:
+            self._app.log_list.append(get_date("Cleaning old records in log"))
+            while len(self._app.log_list) > 2:
+                self._app.log_list.pop(0)
+
         def return_screen_object(screen_name):
             # Iterate through all screens
             found = None
@@ -692,7 +698,7 @@ class MyScreenManager(ScreenManager):
                         # Add sensor value
                         box_sensor.add_widget(Label(text=last_value + suffix, font_size=60))
                         # Add sensor date
-                        box_sensor.add_widget(Label(size_hint_y=0.1, markup=True, text='[b]Sensor last updated ' + last_date[:-3] + '[/b]\nPolled ' + get_date(None), font_size=15))
+                        box_sensor.add_widget(Label(size_hint_y=0.1, markup=True, text='[b]Sensor last updated ' + last_date[:-3] + '[/b]\nPolled ' + get_date(None)[:-3], font_size=15))
                         # Add sensor graph
                         Logger.info("Create plot for %s" % (sensor_name,))
                         Logger.info(str(sensor_plots))
