@@ -36,7 +36,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150729.1555 $"
+__version__ = "$Revision: 20150729.1562 $"
 
 
 def get_date(msg):
@@ -509,32 +509,28 @@ Builder.load_string('''
     on_leave: self.stop_text(self)
     FloatLayout:
         orientation: 'vertical'
-        Button:
-            index: 3
-            text: 'Back'
-            on_press: app.root.current = 'initial_screen'
-            size_hint: None, None
-        Label:
-            index: 2
-            text: "[color=ff3333][b]EdoAutoHome[/b][/color]\\nDeveloped by daniel@engvalls.eu\\n[color=0000ff][ref=url]https://github.com/engdan77[/ref][/font]"
-            markup: True
-            on_ref_press: root.open_browser(self)
-            size_hint: None, None
-            font_size: self.width / 5
-            pos_hint: {'center_x': .5, 'top': .2}
         Scatter:
-            index: 0
-            bbox: ((100, 100), (200, 200))
+            auto_bring_to_front: False
             Image:
                 center: self.parent.center
                 source: 'daniel_engvall.png'
                 size: root.width-400, root.height-400
         Label:
-            index: 1
+            text: "[color=ff3333][b]AutoHomeMobile[/b][/color]\\nDeveloped by daniel@engvalls.eu\\n[color=0000ff][ref=url]https://github.com/engdan77[/ref][/font]"
+            markup: True
+            on_ref_press: root.open_browser(self)
+            size_hint: None, None
+            font_size: self.width / 5
+            pos_hint: {'center_x': .5, 'top': .2}
+        Label:
             id: moving_text
             text: '[color=A31B00]Try to pinch/rotate me...[/color]'
             markup: True
             pos: 50, 50
+        Button:
+            text: 'Back'
+            on_press: app.root.current = 'initial_screen'
+            size_hint: None, None
 
 <MyLeftAlignedLabel>
     font_size: 15
