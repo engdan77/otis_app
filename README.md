@@ -24,11 +24,11 @@ To save some trouble of compiling/packaging from the source properly I've done t
 Apple iPhone/iPad device
 
 Since I've not (yet) purchased any license for this app is currently packaged into a 'ad-hoc' mode which means you have to transfer/install it manually to a "jailbroken" device.
-1) Assure your IOS-device is jailbroken (google "jailbreaka iphone") that usually comes with Cydia and the package AppSync (but if not, check in Cydia that this packag is installed)
-2) On your Mac/Windows install a software that allows you to install .ipa package to your device such as the freeware iFunBox (google "iFunBox"
-3) Download edoAutoHomeMobile IOS-package from 
-4) From iFunBox: Select your device, User Applications, Install App, select the downloaded package
-5) Voila
+1. Assure your IOS-device is jailbroken (google "jailbreaka iphone") that usually comes with Cydia and the package AppSync (but if not, check in Cydia that this packag is installed)
+2. On your Mac/Windows install a software that allows you to install .ipa package to your device such as the freeware iFunBox (google "iFunBox"
+3. Download edoAutoHomeMobile IOS-package from 
+4. From iFunBox: Select your device, User Applications, Install App, select the downloaded package
+5. Voila
 
 Android
 To be described
