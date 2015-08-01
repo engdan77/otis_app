@@ -2,6 +2,9 @@
 # URL: https://github.com/engdan77/edoAutoHomeMobile
 # Author: Daniel Engvall (daniel@engvalls.eu)
 
+import kivy
+kivy.require('1.9.0')
+
 import re
 from functools import partial
 from collections import namedtuple
@@ -40,7 +43,7 @@ from kivy.support import install_twisted_reactor
 install_twisted_reactor()
 from twisted.internet import reactor, protocol
 
-__version__ = "$Revision: 20150729.1571 $"
+__version__ = "$Revision: 20150730.1573 $"
 
 # ---------- Generic functions ----------
 
@@ -835,8 +838,8 @@ class MyApp(App):
             self.sm.connect_server_status = 'Parsing JSON!'
 
             # Save to local file as debug
-            with open('debug.txt', 'w') as f:
-                f.write(msg)
+            # with open('debug.txt', 'w') as f:
+                # f.write(msg)
         # Failed connection
         if msg.find("failed") > 0:
             self.sm.connect_server_status = 'Connection failed!'
