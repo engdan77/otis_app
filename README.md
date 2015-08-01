@@ -21,7 +21,7 @@ Installation
 
 To save some trouble of compiling/packaging from the source properly I've done this for you. So all you have to do is to follow the below instructions.
 
-Apple iPhone/iPad device
+#### Apple iPhone/iPad device
 
 Since I've not (yet) purchased any license for this app is currently packaged into a 'ad-hoc' mode which means you have to transfer/install it manually to a "jailbroken" device.
 1. Assure your IOS-device is jailbroken (google "jailbreaka iphone") that usually comes with Cydia and the package AppSync (but if not, check in Cydia that this packag is installed)
