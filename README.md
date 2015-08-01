@@ -35,12 +35,22 @@ Since I've not (yet) purchased any license for this app is currently packaged in
 5. Voila
 
 
-Android
+#### Android
 To be described
 
-Mac OS X
+#### Mac OS X
 To be described
 
-Windows
+#### Windows
 To be described
+
+
+-------------------------
+Pictures
+-------------------------
+
+![screen1](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_01.jpg)![screen2](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_02.jpg)![screen3](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_03.jpg)
+
+
+
 
