@@ -45,11 +45,15 @@ To be described
 #### Windows
 To be described
 
+-------------------------
+Video
+-------------------------
+Video-clip of this application running on iPhone5/ios 8.4
+[![edoAutoHomeMobile on Youtube](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/youtube.png)](https://www.youtube.com/watch?v=Zn4ydA_KHYc "edoAutoHomeMobile on Youtube - Click to Watch!")
 
 -------------------------
 Pictures
 -------------------------
-
 ![screen1](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_01.jpg)![screen2](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_02.jpg)![screen3](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_03.jpg)
 
 
