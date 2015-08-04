@@ -29,21 +29,41 @@ Since I've not (yet) purchased any license for this app is currently packaged in
 
 2. On your Mac/Windows install a software that allows you to install .ipa package to your device such as the freeware iFunBox (google "iFunBox"
 
-3. Download edoAutoHomeMobile IOS-package from 
+3. Download edoAutoHomeMobile IOS-package from https://github.com/engdan77/edoAutoHomeMobile/raw/master/compiled_packages/ios/autohomemobile.ipa
 
 4. From iFunBox: Select your device, User Applications, Install App, select the downloaded package
 
-5. Voila
+5. Voila !!
 
 
 #### Android
-To be described
+
+1. On the Android device go to Settings -> Applications -> Unknown sources to Enable
+
+2. Transfer this apk-package to your memory card, or download directly to your phone - https://github.com/engdan77/edoAutoHomeMobile/raw/master/compiled_packages/android/autohomemobile.apk
+
+3. Use "My File" (if it exists) or download file explorer such as "EZ Explorer" from App store to browse to the apk-package and run it
+
 
 #### Mac OS X
-To be described
+
+1. Download this dmg-image and open it - https://github.com/engdan77/edoAutoHomeMobile/raw/master/compiled_packages/mac_os_x/autohomemobile.dmg
+
+2. Drag-and-drop the "edoAutoHomeMobile" icon to your Applications in Finder
+
 
 #### Windows
-To be described
+
+1. Download the Windows package - https://github.com/engdan77/edoAutoHomeMobile/raw/master/compiled_packages/windows/autohomemobile.zip
+
+2. Unzip the archive, and run edoautohomemobile.exe
+
+
+-------------------------
+Run from Source
+-------------------------
+
+Download Kivy Framework from http://kivy.org, and execute main.py from Kivy.
 
 -------------------------
 Video
@@ -54,8 +74,9 @@ Video-clip of this application running on iPhone5/ios 8.4
 -------------------------
 Pictures
 -------------------------
+*Mobile Version*
 ![screen1](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_01.jpg)![screen2](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_02.jpg)![screen3](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_03.jpg)
 
+*Desktop Version*
 
-
-
+![desktop_versions](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/desktop_versions.png)
