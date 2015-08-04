@@ -11,7 +11,7 @@ Main purpose was initially to get to know how you could use Python for Mobile ap
 Requirements
 --------------
 
-* Server running edoAutoHome (a RaspberryPi with sensors and software developed in Python), details how to achieve this found at https://github.com/engdan77/edoautohome
+* Server running edoAutoHome (a RaspberryPi with sensors and software developed in Python), all details found at https://github.com/engdan77/edoautohome
 * Client hardware, currently tested on iPhone5 IOS 8.1 and Mac OSX 10.9. But packages been built for Android 4.x and Windows 7 (and later) been built.
 
 
@@ -74,9 +74,11 @@ Video-clip of this application running on iPhone5/ios 8.4
 -------------------------
 Pictures
 -------------------------
-*Mobile Version*
+
+_*Mobile Version*_
+
 ![screen1](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_01.jpg)![screen2](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_02.jpg)![screen3](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/EdoAutoHomeMobile_sensors_03.jpg)
 
-*Desktop Version*
+_*Desktop Version*_
 
 ![desktop_versions](https://github.com/engdan77/edoAutoHomeMobile/blob/master/pics/desktop_versions.png)
