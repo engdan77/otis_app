@@ -11,7 +11,7 @@ Main purpose was initially to get to know how you could use Python for Mobile ap
 Requirements
 --------------
 
-* Server running edoAutoHome (a RaspberryPi with sensors and software developed in Python), all details found at https://github.com/engdan77/edoautohome
+* Server running otis_service (a RaspberryPi with sensors and software developed in Python), all details found at https://github.com/engdan77/otis_service
 * Client hardware, currently tested on iPhone5 IOS 8.1 and Mac OSX 10.9. But packages been built for Android 4.x and Windows 7 (and later) been built.
 
 
@@ -29,7 +29,7 @@ Since I've not (yet) purchased any license for this app is currently packaged in
 
 2. On your Mac/Windows install a software that allows you to install .ipa package to your device such as the freeware iFunBox (google "iFunBox"
 
-3. Download otis_app IOS-package from https://github.com/engdan77/otis_app/raw/master/compiled_packages/ios/autohomemobile.ipa
+3. Download otis_app IOS-package from https://github.com/engdan77/otis_app/raw/master/compiled_packages/ios/otis_app.ipa
 
 4. From iFunBox: Select your device, User Applications, Install App, select the downloaded package
 
@@ -40,21 +40,21 @@ Since I've not (yet) purchased any license for this app is currently packaged in
 
 1. On the Android device go to Settings -> Applications -> Unknown sources to Enable
 
-2. Transfer this apk-package to your memory card, or download directly to your phone - https://github.com/engdan77/otis_app/raw/master/compiled_packages/android/autohomemobile.apk
+2. Transfer this apk-package to your memory card, or download directly to your phone - https://github.com/engdan77/otis_app/raw/master/compiled_packages/android/otis_app.apk
 
 3. Use "My File" (if it exists) or download file explorer such as "EZ Explorer" from App store to browse to the apk-package and run it
 
 
 #### Mac OS X
 
-1. Download this dmg-image and open it - https://github.com/engdan77/otis_app/raw/master/compiled_packages/mac_os_x/autohomemobile.dmg
+1. Download this dmg-image and open it - https://github.com/engdan77/otis_app/raw/master/compiled_packages/mac_os_x/otis_app.dmg
 
 2. Drag-and-drop the "otis_app" icon to your Applications in Finder
 
 
 #### Windows
 
-1. Download the Windows package - https://github.com/engdan77/otis_app/raw/master/compiled_packages/windows/autohomemobile.zip
+1. Download the Windows package - https://github.com/engdan77/otis_app/raw/master/compiled_packages/windows/otis_app.zip
 
 2. Unzip the archive, and run otis_app.exe
 
