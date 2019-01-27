@@ -1,5 +1,5 @@
-# edoAutoHome.py - This Project for HomeAutomation
-# URL: https://github.com/engdan77/edoAutoHomeMobile
+# otis_app.py - This project is a frontend to otis_service
+# URL: https://github.com/engdan77/otis_app
 # Author: Daniel Engvall (daniel@engvalls.eu)
 
 import kivy
@@ -801,7 +801,7 @@ class MyApp(App):
             }
 
         ]'''
-        settings.add_json_panel('EdoAutoHome', self.config, data=self.setting_json)
+        settings.add_json_panel('otis_service', self.config, data=self.setting_json)
 
     def on_stop(self):
         Logger.info("Good Bye!!")
